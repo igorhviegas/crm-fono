@@ -104,17 +104,18 @@ export function PacienteModal({
 }
 
 const quando = (d: Date) => d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-const rotuloTipo = { aniversario: '🎂 Aniversário', retorno: '💬 Retorno' }
+const rotuloTipo = { aniversario: 'Aniversário', retorno: 'Retorno' }
+const chip = 'inline-block rounded-full bg-ouro-claro px-2 py-0.5 font-medium'
 
 export function PerfilModal({
-  paciente, mensagens, onMensagem, onEditar, onClose,
-}: { paciente: Paciente; mensagens: Msg[]; onMensagem: (t: Tipo) => void; onEditar: () => void; onClose: () => void }) {
+  paciente, mensagens, onMensagem, onEditar, onClose, inline,
+}: { paciente: Paciente; mensagens: Msg[]; onMensagem: (t: Tipo) => void; onEditar: () => void; onClose: () => void; inline?: boolean }) {
   const dest = destinatarioDe(paciente)
   const [a, m, d] = [paciente.nascimento.slice(0, 4), paciente.nascimento.slice(5, 7), paciente.nascimento.slice(8)]
-  const linha = (r: string, v?: string) => v && <p className="flex justify-between gap-4 py-1.5 text-sm"><span className="text-tinta/60">{r}</span><span className="text-right">{v}</span></p>
+  const linha = (r: string, v?: string) => v && <p className="flex justify-between gap-4 py-2.5 text-sm"><span className="text-tinta/60">{r}</span><span className="text-right">{v}</span></p>
 
   return (
-    <Modal titulo={paciente.nome} onClose={onClose}>
+    <Modal titulo={paciente.nome} onClose={onClose} inline={inline}>
       <div className="mb-5 divide-y divide-tinta/10">
         {linha('Nascimento', `${d}/${m}/${a}`)}
         {linha('WhatsApp', formataTelefone(paciente.whatsapp))}
@@ -127,24 +128,24 @@ export function PerfilModal({
       </div>
 
       <div className="mb-5 grid grid-cols-2 gap-2">
-        <button className={cls(btn.base, btn.ouro)} onClick={() => onMensagem('aniversario')}>🎂 Aniversário</button>
-        <button className={cls(btn.base, btn.preto)} onClick={() => onMensagem('retorno')}>💬 Retorno</button>
+        <button className={cls(btn.base, btn.ouro)} onClick={() => onMensagem('aniversario')}>Parabéns</button>
+        <button className={cls(btn.base, btn.preto)} onClick={() => onMensagem('retorno')}>Retorno</button>
       </div>
       <button className={cls(btn.base, btn.linha, 'mb-6 w-full')} onClick={onEditar}>Editar cadastro</button>
 
       <h3 className="mb-2 font-serif text-xl font-semibold">Histórico de mensagens</h3>
       {mensagens.length === 0 ? (
-        <p className="text-sm text-tinta/50">Nenhuma mensagem preparada ainda.</p>
+        <p className="text-sm text-tinta/60">Nenhuma mensagem preparada ainda.</p>
       ) : (
         <ul className="divide-y divide-tinta/10 text-sm">
           {mensagens.slice(0, 10).map((x) => (
-            <li key={x.id} className="flex items-center justify-between gap-3 py-2">
-              <span>{rotuloTipo[x.tipo]} <span className="text-tinta/50">· {x.destinatario === 'responsavel' ? 'responsável' : 'paciente'}</span></span>
+            <li key={x.id} className="flex items-center justify-between gap-3 py-2.5">
+              <span><span className="font-medium">{rotuloTipo[x.tipo]}</span> <span className="text-tinta/60">· {x.destinatario === 'responsavel' ? 'responsável' : 'paciente'}</span></span>
               <span className="text-right">
-                <span className={x.status === 'envio_confirmado' ? 'font-medium text-ouro' : 'text-tinta/60'}>
-                  {x.status === 'envio_confirmado' ? '✓ envio confirmado' : 'link aberto'}
+                <span className={x.status === 'envio_confirmado' ? chip : 'text-tinta/70'}>
+                  {x.status === 'envio_confirmado' ? 'Envio confirmado' : 'Link aberto, sem confirmação'}
                 </span>
-                <span className="block text-xs text-tinta/50">{quando(x.criadoEm)}</span>
+                <span className="mt-0.5 block text-xs text-tinta/60">{quando(x.criadoEm)}</span>
               </span>
             </li>
           ))}
@@ -154,7 +155,7 @@ export function PerfilModal({
   )
 }
 
-export function MensagemModal({ paciente, tipo, config, onClose }: { paciente: Paciente; tipo: Tipo; config: Config; onClose: () => void }) {
+export function MensagemModal({ paciente, tipo, config, onClose, inline }: { paciente: Paciente; tipo: Tipo; config: Config; onClose: () => void; inline?: boolean }) {
   const dest = destinatarioDe(paciente)
   const [msg, setMsg] = useState(montaMensagem(config[chaveModelo(tipo, dest.responsavel)], dest.nome, config.nomeClinica, paciente.nome))
   const [arte, setArte] = useState<Blob | null>(null)
@@ -183,7 +184,18 @@ export function MensagemModal({ paciente, tipo, config, onClose }: { paciente: P
   }
 
   return (
-    <Modal titulo={`${rotuloTipo[tipo]} · ${paciente.nome.split(' ')[0]}`} onClose={onClose}>
+    <Modal titulo={`${tipo === 'aniversario' ? 'Parabéns' : 'Retorno'} · ${paciente.nome.split(' ')[0]}`} onClose={onClose} inline={inline}>
+      <ol aria-label="Etapas" className="mb-5 grid grid-cols-3 gap-2 text-xs">
+        {['Revisar', 'Enviar no WhatsApp', 'Confirmar'].map((n, i) => {
+          const passo = confirmado ? 3 : msgId ? 2 : 1
+          return (
+            <li key={n} aria-current={i + 1 === passo ? 'step' : undefined} className="flex flex-col gap-1.5">
+              <span className={cls('h-1 rounded-full', i + 1 <= passo ? 'bg-ouro' : 'bg-tinta/10')} />
+              <span className={i + 1 === passo ? 'font-semibold' : 'text-tinta/60'}>{i + 1}. {n}</span>
+            </li>
+          )
+        })}
+      </ol>
       {tipo === 'aniversario' && (
         <>
           {url ? <img src={url} alt="Arte de aniversário" className="mx-auto mb-4 max-h-72 rounded-xl border border-tinta/10" /> : <p className="mb-4 text-sm">Gerando arte…</p>}
@@ -205,7 +217,7 @@ export function MensagemModal({ paciente, tipo, config, onClose }: { paciente: P
       {msgId && (
         <div className="mt-4 rounded-xl bg-ouro-claro p-4 text-center text-sm">
           {confirmado ? (
-            <p className="font-medium">✓ Envio confirmado no histórico.</p>
+            <p className="font-medium">Envio confirmado no histórico.</p>
           ) : (
             <>
               <p className="mb-3">Depois de enviar no WhatsApp, confirme aqui:</p>

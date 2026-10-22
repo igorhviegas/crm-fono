@@ -13,3 +13,5 @@ html, body { background: #fff; color: var(--color-tinta); -webkit-text-size-adju
 /* 16px evita o zoom automático de campos no Safari do iPhone */
 input, textarea, select { font-size: 16px; }
 button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--color-tinta); outline-offset: 2px; }
+input:focus, textarea:focus, select:focus { box-shadow: 0 0 0 3px rgb(176 141 79 / 0.25); }
