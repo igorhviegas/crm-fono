@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    // Autorizada = logada com Google (e-mail verificado) E cadastrada em membros/{email}.
+    // membros so pode ser editado pelo console do Firebase (write: false).
+    function autorizada() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(db)/documents/membros/$(request.auth.token.email));
+    }
+
+    function pacienteValido(d) {
+      return d.keys().hasOnly(['nome', 'whatsapp', 'nascimento', 'observacoes', 'arquivado', 'criadoEm'])
+        && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 120
+        && d.whatsapp is string && d.whatsapp.matches('^55[0-9]{10,11}$')
+        && d.nascimento is string && d.nascimento.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && (!('observacoes' in d) || (d.observacoes is string && d.observacoes.size() <= 500))
+        && d.arquivado is bool;
+    }
+
+    match /membros/{email} {
+      allow read: if request.auth != null && request.auth.token.email == email;
+      allow write: if false;
+    }
+
+    match /pacientes/{id} {
+      allow read: if autorizada();
+      allow create, update: if autorizada() && pacienteValido(request.resource.data);
+      allow delete: if false; // so arquivar; exclusao definitiva pelo console
+    }
+
+    match /config/{doc} {
+      allow read: if autorizada();
+      allow write: if autorizada()
+        && request.resource.data.keys().hasOnly(['nomeClinica', 'modeloAniversario'])
+        && request.resource.data.nomeClinica is string && request.resource.data.nomeClinica.size() <= 100
+        && request.resource.data.modeloAniversario is string && request.resource.data.modeloAniversario.size() <= 1000;
+    }
+  }
+}

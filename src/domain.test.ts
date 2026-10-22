@@ -1,0 +1,69 @@
+import { describe, expect, it } from 'vitest'
+import {
+  aniversariantes, diasAteAniversario, linkWhatsApp, montaMensagem, normalizaNascimento,
+  normalizaTelefone, variaveisInvalidas, type Paciente,
+} from './domain'
+
+const p = (nome: string, nascimento: string, arquivado = false): Paciente => ({
+  id: nome, nome, nascimento, arquivado, whatsapp: '5531997115766',
+})
+
+describe('telefone', () => {
+  it('normaliza formatos comuns', () => {
+    expect(normalizaTelefone('(31) 99711-5766')).toBe('5531997115766')
+    expect(normalizaTelefone('+55 31 3333-4444')).toBe('553133334444')
+    expect(normalizaTelefone('031997115766')).toBe('5531997115766')
+  })
+  it('rejeita inválidos', () => {
+    expect(normalizaTelefone('12345')).toBeNull()
+    expect(normalizaTelefone('')).toBeNull()
+  })
+})
+
+describe('nascimento', () => {
+  it('aceita DD/MM/AAAA e ISO', () => {
+    expect(normalizaNascimento('5/3/2015')).toBe('2015-03-05')
+    expect(normalizaNascimento('2015-03-05')).toBe('2015-03-05')
+  })
+  it('rejeita datas impossíveis', () => {
+    expect(normalizaNascimento('31/02/2015')).toBeNull()
+    expect(normalizaNascimento('29/02/2023')).toBeNull()
+    expect(normalizaNascimento('abc')).toBeNull()
+  })
+})
+
+describe('aniversários', () => {
+  it('ignora o ano de nascimento', () => {
+    const hoje = { a: 2026, m: 10, d: 21 }
+    expect(diasAteAniversario('1990-10-21', hoje)).toBe(0)
+    expect(diasAteAniversario('2020-10-22', hoje)).toBe(1)
+    expect(diasAteAniversario('2020-10-20', hoje)).toBe(364)
+  })
+  it('virada de ano', () => {
+    expect(diasAteAniversario('2000-01-02', { a: 2026, m: 12, d: 30 })).toBe(3)
+  })
+  it('29/02 cai em 28/02 em ano não bissexto e em 29/02 em bissexto', () => {
+    expect(diasAteAniversario('2016-02-29', { a: 2027, m: 2, d: 28 })).toBe(0)
+    expect(diasAteAniversario('2016-02-29', { a: 2028, m: 2, d: 28 })).toBe(1)
+    expect(diasAteAniversario('2016-02-29', { a: 2028, m: 2, d: 29 })).toBe(0)
+  })
+  it('filtros hoje / semana / mês, sem arquivados', () => {
+    const hoje = { a: 2026, m: 10, d: 21 }
+    const ps = [p('A', '2000-10-21'), p('B', '2000-10-27'), p('C', '2000-10-28'), p('D', '2000-10-05'), p('E', '2000-10-21', true)]
+    expect(aniversariantes(ps, 'hoje', hoje).map((x) => x.nome)).toEqual(['A'])
+    expect(aniversariantes(ps, 'semana', hoje).map((x) => x.nome)).toEqual(['A', 'B'])
+    expect(aniversariantes(ps, 'mes', hoje).map((x) => x.nome)).toEqual(['D', 'A', 'B', 'C'])
+  })
+})
+
+describe('mensagem', () => {
+  it('usa primeiro nome e clínica', () => {
+    expect(montaMensagem('Oi {nome}, {clinica}', 'Maria da Silva', 'Clínica X')).toBe('Oi Maria, Clínica X')
+  })
+  it('detecta variáveis desconhecidas', () => {
+    expect(variaveisInvalidas('{nome} {clinica} {cpf}')).toEqual(['cpf'])
+  })
+  it('gera link wa.me codificado', () => {
+    expect(linkWhatsApp('5531997115766', 'Olá! 🎉')).toBe('https://wa.me/5531997115766?text=Ol%C3%A1!%20%F0%9F%8E%89')
+  })
+})
