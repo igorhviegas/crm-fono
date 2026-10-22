@@ -7,3 +7,4 @@ dist
 *-debug.log
 firebase-debug.log
 .vercel
+*.tsbuildinfo
