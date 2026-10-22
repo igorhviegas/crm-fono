@@ -9,12 +9,26 @@ service cloud.firestore {
         && exists(/databases/$(db)/documents/membros/$(request.auth.token.email));
     }
 
+    function textoOpcional(d, k, max) {
+      return !(k in d) || (d[k] is string && d[k].size() <= max);
+    }
+
     function pacienteValido(d) {
-      return d.keys().hasOnly(['nome', 'whatsapp', 'nascimento', 'observacoes', 'arquivado', 'criadoEm'])
+      return d.keys().hasOnly(['nome', 'whatsapp', 'nascimento', 'observacoes', 'arquivado', 'criadoEm',
+                               'destinatario', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento'])
         && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 120
-        && d.whatsapp is string && d.whatsapp.matches('^55[0-9]{10,11}$')
+        && d.destinatario in ['paciente', 'responsavel']
+        // WhatsApp do paciente pode ficar vazio só quando as mensagens vão para o responsável
+        && d.whatsapp is string
+        && (d.whatsapp.matches('^55[0-9]{10,11}$') || (d.whatsapp == '' && d.destinatario == 'responsavel'))
+        && (d.destinatario == 'paciente'
+            || ('responsavelWhatsapp' in d && d.responsavelWhatsapp.matches('^55[0-9]{10,11}$')))
+        && (!('responsavelWhatsapp' in d) || (d.responsavelWhatsapp is string && d.responsavelWhatsapp.matches('^55[0-9]{10,11}$')))
         && d.nascimento is string && d.nascimento.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-        && (!('observacoes' in d) || (d.observacoes is string && d.observacoes.size() <= 500))
+        && textoOpcional(d, 'observacoes', 500)
+        && textoOpcional(d, 'responsavelNome', 120)
+        && textoOpcional(d, 'convenio', 60)
+        && textoOpcional(d, 'atendimento', 60)
         && d.arquivado is bool;
     }
 
@@ -27,14 +41,37 @@ service cloud.firestore {
       allow read: if autorizada();
       allow create, update: if autorizada() && pacienteValido(request.resource.data);
       allow delete: if false; // so arquivar; exclusao definitiva pelo console
+
+      // Historico de mensagens: registra "link_aberto" e depois pode virar "envio_confirmado".
+      // Nao guarda o texto da mensagem e nao pode ser apagado.
+      match /mensagens/{mid} {
+        allow create: if autorizada()
+          && request.resource.data.keys().hasOnly(['tipo', 'destinatario', 'status', 'criadoEm'])
+          && request.resource.data.tipo in ['aniversario', 'retorno']
+          && request.resource.data.destinatario in ['paciente', 'responsavel']
+          && request.resource.data.status == 'link_aberto'
+          && request.resource.data.criadoEm == request.time;
+        allow update: if autorizada()
+          && request.resource.data.status == 'envio_confirmado'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
+        allow delete: if false;
+      }
+    }
+
+    // Leitura de todas as mensagens de uma vez (para marcar quem ja recebeu parabens).
+    match /{path=**}/mensagens/{mid} {
+      allow read: if autorizada();
     }
 
     match /config/{doc} {
       allow read: if autorizada();
       allow write: if autorizada()
-        && request.resource.data.keys().hasOnly(['nomeClinica', 'modeloAniversario'])
+        && request.resource.data.keys().hasOnly(['nomeClinica', 'modeloAniversario', 'modeloAniversarioResp', 'modeloRetorno', 'modeloRetornoResp'])
         && request.resource.data.nomeClinica is string && request.resource.data.nomeClinica.size() <= 100
-        && request.resource.data.modeloAniversario is string && request.resource.data.modeloAniversario.size() <= 1000;
+        && textoOpcional(request.resource.data, 'modeloAniversario', 1000)
+        && textoOpcional(request.resource.data, 'modeloAniversarioResp', 1000)
+        && textoOpcional(request.resource.data, 'modeloRetorno', 1000)
+        && textoOpcional(request.resource.data, 'modeloRetornoResp', 1000);
     }
   }
 }

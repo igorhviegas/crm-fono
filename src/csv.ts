@@ -1,7 +1,7 @@
 import Papa from 'papaparse'
 import { normalizaNascimento, normalizaTelefone } from './domain'
 
-export type Linha = { nome: string; whatsapp: string; nascimento: string }
+export type Linha = { nome: string; whatsapp: string; nascimento: string; convenio?: string }
 export type Resultado = { validas: Linha[]; erros: string[] }
 
 const sem = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().trim()
@@ -15,13 +15,15 @@ export function lerCsv(texto: string): Resultado {
   if (!cN || !cT || !cD)
     return { validas: [], erros: ['Não encontrei as colunas. A primeira linha precisa ter: Nome, WhatsApp (ou Telefone) e Nascimento.'] }
 
+  const cC = acha(cols, ['convenio', 'plano']) // opcional
   const validas: Linha[] = []
   const erros: string[] = []
   data.forEach((r, i) => {
     const nome = (r[cN] ?? '').trim()
     const whatsapp = normalizaTelefone(r[cT] ?? '')
     const nascimento = normalizaNascimento(r[cD] ?? '')
-    if (nome && whatsapp && nascimento) validas.push({ nome, whatsapp, nascimento })
+    const convenio = cC ? (r[cC] ?? '').trim().slice(0, 60) : ''
+    if (nome && whatsapp && nascimento) validas.push({ nome, whatsapp, nascimento, ...(convenio ? { convenio } : {}) })
     else erros.push(`Linha ${i + 2}: ${nome || '(sem nome)'} — ${!whatsapp ? 'telefone inválido' : 'data inválida'}`)
   })
   return { validas, erros }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { entrarComGoogle, sair, useConfig, usePacientes, useSessao } from './data'
-import { aniversariantes, formataTelefone, hojeSP, type Filtro, type Paciente } from './domain'
-import { AniversarioModal, ConfigModal, ImportarModal, PacienteModal } from './modals'
+import { entrarComGoogle, sair, useConfig, useMensagens, usePacientes, useSessao } from './data'
+import { aniversariantes, formataTelefone, hojeSP, type Filtro, type Paciente, type Tipo } from './domain'
+import { ConfigModal, ImportarModal, MensagemModal, PacienteModal, PerfilModal } from './modals'
 import { btn, cls } from './ui'
 
 const Marca = () => (
@@ -49,13 +49,18 @@ export default function App() {
   return <Painel email={user!.email!} />
 }
 
-type Aberto = { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'config' } | { t: 'parabens'; p: Paciente } | null
+type Aberto =
+  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'config' }
+  | { t: 'perfil'; p: Paciente } | { t: 'msg'; p: Paciente; tipo: Tipo }
+  | null
 
 function Painel({ email }: { email: string }) {
   const pacientes = usePacientes(true)
   const config = useConfig(true)
+  const mensagens = useMensagens(true)
   const [filtro, setFiltro] = useState<Filtro>('semana')
   const [busca, setBusca] = useState('')
+  const [convenio, setConvenio] = useState('')
   const [arquivados, setArquivados] = useState(false)
   const [aberto, setAberto] = useState<Aberto>(null)
   const hoje = hojeSP()
@@ -64,9 +69,16 @@ function Painel({ email }: { email: string }) {
   const aniv = useMemo(() => aniversariantes(lista, filtro, hoje), [lista, filtro, hoje.d, hoje.m]) // eslint-disable-line react-hooks/exhaustive-deps
   const q = busca.trim().toLowerCase()
   const qDigitos = q.replace(/\D/g, '')
+  const convenios = [...new Set(lista.map((p) => p.convenio).filter(Boolean) as string[])].sort()
   const visiveis = lista.filter(
-    (p) => p.arquivado === arquivados && (!q || p.nome.toLowerCase().includes(q) || (qDigitos && p.whatsapp.includes(qDigitos))),
+    (p) =>
+      p.arquivado === arquivados &&
+      (!convenio || p.convenio === convenio) &&
+      (!q || p.nome.toLowerCase().includes(q) || (qDigitos && (p.whatsapp + (p.responsavelWhatsapp ?? '')).includes(qDigitos))),
   )
+  // "Parabéns enviado" só vale com envio confirmado neste ano; link aberto não conta como enviado.
+  const parabensEnviado = (p: Paciente) =>
+    mensagens.get(p.id)?.some((m) => m.tipo === 'aniversario' && m.status === 'envio_confirmado' && m.criadoEm.getFullYear() === hoje.a)
   const dia = (n: string) => `${n.slice(8)}/${n.slice(5, 7)}`
   const ehHoje = (p: Paciente) => p.nascimento.slice(5) === `${String(hoje.m).padStart(2, '0')}-${String(hoje.d).padStart(2, '0')}`
 
@@ -103,9 +115,15 @@ function Painel({ email }: { email: string }) {
               <li key={p.id} className="flex items-center justify-between gap-3 py-3">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{p.nome}</p>
-                  <p className="text-sm text-tinta/60">{ehHoje(p) ? 'Hoje! 🎉' : dia(p.nascimento)}</p>
+                  <p className="text-sm text-tinta/60">
+                    {ehHoje(p) ? 'Hoje! 🎉' : dia(p.nascimento)}
+                    {p.destinatario === 'responsavel' && ' · ao responsável'}
+                    {parabensEnviado(p) && <span className="font-medium text-ouro"> · ✓ enviado</span>}
+                  </p>
                 </div>
-                <button className={cls(btn.base, btn.ouro, 'shrink-0')} onClick={() => setAberto({ t: 'parabens', p })}>Parabéns</button>
+                <button className={cls(btn.base, parabensEnviado(p) ? btn.linha : btn.ouro, 'shrink-0')} onClick={() => setAberto({ t: 'msg', p, tipo: 'aniversario' })}>
+                  {parabensEnviado(p) ? 'Reenviar' : 'Parabéns'}
+                </button>
               </li>
             ))}
           </ul>
@@ -127,12 +145,18 @@ function Painel({ email }: { email: string }) {
           placeholder="Buscar por nome ou telefone"
           className="mb-3 min-h-12 w-full rounded-xl border border-tinta/20 px-4 focus:border-ouro focus:outline-none"
         />
-        <div className="mb-2 flex gap-4 text-sm">
+        <div className="mb-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
           {[false, true].map((a) => (
             <button key={String(a)} onClick={() => setArquivados(a)} className={cls('min-h-10', arquivados === a ? 'border-b-2 border-ouro font-medium' : 'text-tinta/60')}>
               {a ? 'Arquivados' : 'Ativos'}
             </button>
           ))}
+          {convenios.length > 0 && (
+            <select value={convenio} onChange={(e) => setConvenio(e.target.value)} aria-label="Filtrar por convênio" className="ml-auto min-h-10 rounded-full border border-tinta/20 bg-white px-3 text-base">
+              <option value="">Todos os convênios</option>
+              {convenios.map((c) => <option key={c}>{c}</option>)}
+            </select>
+          )}
         </div>
         {pacientes === null ? (
           <p className="py-6 text-sm text-tinta/50">Carregando…</p>
@@ -142,10 +166,13 @@ function Painel({ email }: { email: string }) {
           <ul className="divide-y divide-tinta/10">
             {visiveis.map((p) => (
               <li key={p.id}>
-                <button onClick={() => setAberto({ t: 'editar', p })} className="flex min-h-16 w-full items-center justify-between gap-3 py-2 text-left">
+                <button onClick={() => setAberto({ t: 'perfil', p })} className="flex min-h-16 w-full items-center justify-between gap-3 py-2 text-left">
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{p.nome}</span>
-                    <span className="block text-sm text-tinta/60">{formataTelefone(p.whatsapp)}</span>
+                    <span className="block truncate text-sm text-tinta/60">
+                      {formataTelefone(p.whatsapp || p.responsavelWhatsapp || '')}
+                      {p.convenio && ` · ${p.convenio}`}
+                    </span>
                   </span>
                   <span className="shrink-0 text-sm text-tinta/60">{ehHoje(p) && '🎂 '}{dia(p.nascimento)}</span>
                 </button>
@@ -155,11 +182,20 @@ function Painel({ email }: { email: string }) {
         )}
       </section>
 
-      {aberto?.t === 'novo' && <PacienteModal paciente={null} onClose={() => setAberto(null)} />}
-      {aberto?.t === 'editar' && <PacienteModal paciente={aberto.p} onClose={() => setAberto(null)} />}
+      {aberto?.t === 'novo' && <PacienteModal paciente={null} convenios={convenios} onClose={() => setAberto(null)} />}
+      {aberto?.t === 'editar' && <PacienteModal paciente={aberto.p} convenios={convenios} onClose={() => setAberto(null)} />}
+      {aberto?.t === 'perfil' && (
+        <PerfilModal
+          paciente={aberto.p}
+          mensagens={mensagens.get(aberto.p.id) ?? []}
+          onMensagem={(tipo) => setAberto({ t: 'msg', p: aberto.p, tipo })}
+          onEditar={() => setAberto({ t: 'editar', p: aberto.p })}
+          onClose={() => setAberto(null)}
+        />
+      )}
       {aberto?.t === 'importar' && <ImportarModal existentes={lista} onClose={() => setAberto(null)} />}
       {aberto?.t === 'config' && <ConfigModal config={config} onClose={() => setAberto(null)} />}
-      {aberto?.t === 'parabens' && <AniversarioModal paciente={aberto.p} config={config} onClose={() => setAberto(null)} />}
+      {aberto?.t === 'msg' && <MensagemModal paciente={aberto.p} tipo={aberto.tipo} config={config} onClose={() => setAberto(null)} />}
     </div>
   )
 }

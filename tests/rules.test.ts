@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, it } from 'vitest'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc, deleteDoc, collection, getDocs } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, collectionGroup, getDocs, serverTimestamp } from 'firebase/firestore'
 
 // Roda com: npm run test:rules (sobe o emulador do Firestore). Só dados fictícios.
 let env: RulesTestEnvironment
-const ok = { nome: 'Paciente Teste', whatsapp: '5531999999999', nascimento: '2015-03-05', arquivado: false }
+const ok = { nome: 'Paciente Teste', whatsapp: '5531999999999', nascimento: '2015-03-05', arquivado: false, destinatario: 'paciente' }
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
@@ -48,6 +48,28 @@ describe('Firestore rules', () => {
     await assertFails(setDoc(doc(db, 'pacientes/p3'), { ...ok, whatsapp: '123' }))
     await assertFails(setDoc(doc(db, 'pacientes/p3'), { ...ok, cpf: '000' }))
     await assertFails(deleteDoc(doc(db, 'pacientes/p1')))
+  })
+  it('responsável: paciente sem WhatsApp só vale se o destinatário for o responsável', async () => {
+    const db = como('barbara@exemplo.com')
+    const crianca = { ...ok, whatsapp: '', destinatario: 'responsavel', responsavelNome: 'Ana', responsavelWhatsapp: '5531911112222', convenio: 'Amagis Saúde', atendimento: 'Fonoterapia' }
+    await assertSucceeds(setDoc(doc(db, 'pacientes/c1'), crianca))
+    const { responsavelWhatsapp: _omit, ...semFoneResp } = crianca
+    await assertFails(setDoc(doc(db, 'pacientes/c2'), semFoneResp))
+    await assertFails(setDoc(doc(db, 'pacientes/c3'), { ...ok, whatsapp: '' }))
+    await assertFails(setDoc(doc(db, 'pacientes/c4'), { ...crianca, destinatario: 'outro' }))
+  })
+  it('histórico de mensagens: cria como link_aberto, confirma, nunca apaga nem inventa envio', async () => {
+    const db = como('barbara@exemplo.com')
+    const m = doc(db, 'pacientes/p1/mensagens/m1')
+    await assertFails(setDoc(m, { tipo: 'retorno', destinatario: 'paciente', status: 'envio_confirmado', criadoEm: serverTimestamp() }))
+    await assertFails(setDoc(m, { tipo: 'retorno', destinatario: 'paciente', status: 'link_aberto', criadoEm: serverTimestamp(), texto: 'x' }))
+    await assertSucceeds(setDoc(m, { tipo: 'retorno', destinatario: 'paciente', status: 'link_aberto', criadoEm: serverTimestamp() }))
+    await assertSucceeds(updateDoc(m, { status: 'envio_confirmado' }))
+    await assertFails(updateDoc(m, { tipo: 'aniversario' }))
+    await assertFails(deleteDoc(m))
+    await assertSucceeds(getDocs(collectionGroup(db, 'mensagens')))
+    await assertFails(getDocs(collectionGroup(como('estranho@gmail.com'), 'mensagens')))
+    await assertFails(getDocs(collectionGroup(env.unauthenticatedContext().firestore(), 'mensagens')))
   })
   it('config só aceita os campos previstos', async () => {
     const db = como('barbara@exemplo.com')

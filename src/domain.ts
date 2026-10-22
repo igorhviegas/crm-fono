@@ -1,18 +1,50 @@
 // Regras de negócio puras (sem Firebase/DOM) — cobertas por domain.test.ts.
 
+export type Destinatario = 'paciente' | 'responsavel'
+export type Tipo = 'aniversario' | 'retorno'
+
 export type Paciente = {
   id: string
   nome: string
-  whatsapp: string // 55DDDNUMERO
+  whatsapp: string // 55DDDNUMERO; '' só quando o destinatário é o responsável
   nascimento: string // AAAA-MM-DD
   observacoes?: string
   arquivado: boolean
+  destinatario: Destinatario // quem recebe as mensagens
+  responsavelNome?: string
+  responsavelWhatsapp?: string
+  convenio?: string
+  atendimento?: string
 }
 
-export const MODELO_PADRAO =
-  'Olá, {nome}! 🎉 A equipe da {clinica} deseja a você um feliz aniversário, com muita saúde, alegria e momentos especiais! Que seu novo ciclo seja repleto de coisas boas. Um abraço de toda a nossa equipe! 💛'
+export type ChaveModelo = 'modeloAniversario' | 'modeloAniversarioResp' | 'modeloRetorno' | 'modeloRetornoResp'
+
+// "Resp" = mensagem enviada ao responsável (fala do paciente em 3ª pessoa).
+export const MODELOS_PADRAO: Record<ChaveModelo, string> = {
+  modeloAniversario:
+    'Olá, {nome}! 🎉 A equipe da {clinica} deseja a você um feliz aniversário, com muita saúde, alegria e momentos especiais! Que seu novo ciclo seja repleto de coisas boas. Um abraço de toda a nossa equipe! 💛',
+  modeloAniversarioResp:
+    'Olá, {nome}! 🎉 A equipe da {clinica} deseja um feliz aniversário a {paciente}, com muita saúde, alegria e momentos especiais! Que o novo ciclo seja repleto de coisas boas. Um abraço de toda a nossa equipe! 💛',
+  modeloRetorno:
+    'Olá, {nome}! Tudo bem? 😊 Aqui é da {clinica}. Estamos entrando em contato para saber como você está e verificar se gostaria de agendar ou conversar sobre o seu próximo atendimento. Ficamos à disposição!',
+  modeloRetornoResp:
+    'Olá, {nome}! Tudo bem? 😊 Aqui é da {clinica}. Estamos entrando em contato para saber como {paciente} está e verificar se gostariam de agendar ou conversar sobre o próximo atendimento. Ficamos à disposição!',
+}
+
+export const chaveModelo = (tipo: Tipo, resp: boolean): ChaveModelo =>
+  `modelo${tipo === 'aniversario' ? 'Aniversario' : 'Retorno'}${resp ? 'Resp' : ''}`
 
 export const CLINICA_PADRAO = 'Bárbara Rabelo Fonoaudiologia'
+
+export const ATENDIMENTOS = ['Audiometria', 'Teste da orelhinha', 'Impedanciometria', 'Otoemissões', 'Fonoterapia', 'Avaliação / consulta', 'Outro']
+export const CONVENIOS_SUGERIDOS = ['Particular', 'IPSM', 'Amagis Saúde', 'Cemig Saúde', 'Asseio', 'Abertta Saúde', 'SulAmérica', 'MedSênior']
+
+/** Para quem a mensagem vai: o próprio paciente ou o responsável. */
+export function destinatarioDe(p: Paciente): { nome: string; tel: string; responsavel: boolean } {
+  return p.destinatario === 'responsavel'
+    ? { nome: p.responsavelNome || p.nome, tel: p.responsavelWhatsapp ?? '', responsavel: true }
+    : { nome: p.nome, tel: p.whatsapp, responsavel: false }
+}
 
 /** Aceita "(31) 99711-5766", "31997115766", "+55 31 ..." → "5531997115766"; null se inválido. */
 export function normalizaTelefone(entrada: string): string | null {
@@ -22,6 +54,7 @@ export function normalizaTelefone(entrada: string): string | null {
 }
 
 export function formataTelefone(t: string): string {
+  if (!t) return ''
   const n = t.slice(2)
   return n.length === 11
     ? `(${n.slice(0, 2)}) ${n.slice(2, 7)}-${n.slice(7)}`
@@ -78,13 +111,17 @@ export function aniversariantes(ps: Paciente[], filtro: Filtro, hoje: Dia): Paci
 
 export const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? ''
 
-/** Só {nome} e {clinica}; qualquer outra variável é rejeitada na validação. */
+/** Só {nome}, {paciente} e {clinica}; qualquer outra variável é rejeitada na validação. */
 export function variaveisInvalidas(modelo: string): string[] {
-  return [...modelo.matchAll(/\{([^}]*)\}/g)].map((m) => m[1]).filter((v) => v !== 'nome' && v !== 'clinica')
+  return [...modelo.matchAll(/\{([^}]*)\}/g)].map((m) => m[1]).filter((v) => !['nome', 'paciente', 'clinica'].includes(v))
 }
 
-export function montaMensagem(modelo: string, nome: string, clinica: string): string {
-  return modelo.replaceAll('{nome}', primeiroNome(nome)).replaceAll('{clinica}', clinica)
+/** {nome} = quem recebe; {paciente} = o paciente (útil quando quem recebe é o responsável). */
+export function montaMensagem(modelo: string, destinatario: string, clinica: string, paciente = destinatario): string {
+  return modelo
+    .replaceAll('{nome}', primeiroNome(destinatario))
+    .replaceAll('{paciente}', primeiroNome(paciente))
+    .replaceAll('{clinica}', clinica)
 }
 
 export const linkWhatsApp = (tel: string, texto: string) => `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`

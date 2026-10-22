@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   aniversariantes, diasAteAniversario, linkWhatsApp, montaMensagem, normalizaNascimento,
-  normalizaTelefone, variaveisInvalidas, type Paciente,
+  normalizaTelefone, variaveisInvalidas, destinatarioDe, chaveModelo, type Paciente,
 } from './domain'
 
 const p = (nome: string, nascimento: string, arquivado = false): Paciente => ({
-  id: nome, nome, nascimento, arquivado, whatsapp: '5531997115766',
+  id: nome, nome, nascimento, arquivado, whatsapp: '5531997115766', destinatario: 'paciente',
 })
 
 describe('telefone', () => {
@@ -61,7 +61,17 @@ describe('mensagem', () => {
     expect(montaMensagem('Oi {nome}, {clinica}', 'Maria da Silva', 'Clínica X')).toBe('Oi Maria, Clínica X')
   })
   it('detecta variáveis desconhecidas', () => {
-    expect(variaveisInvalidas('{nome} {clinica} {cpf}')).toEqual(['cpf'])
+    expect(variaveisInvalidas('{nome} {paciente} {clinica} {cpf}')).toEqual(['cpf'])
+  })
+  it('{paciente} difere de {nome} quando o destinatário é o responsável', () => {
+    expect(montaMensagem('{nome} / {paciente}', 'Ana Souza', 'C', 'Pedro Souza')).toBe('Ana / Pedro')
+  })
+  it('escolhe o destinatário e o modelo certos', () => {
+    const crianca: Paciente = { ...p('Pedro Souza', '2018-05-01'), whatsapp: '', destinatario: 'responsavel', responsavelNome: 'Ana Souza', responsavelWhatsapp: '5531911112222' }
+    expect(destinatarioDe(crianca)).toEqual({ nome: 'Ana Souza', tel: '5531911112222', responsavel: true })
+    expect(destinatarioDe(p('Maria', '2000-01-01')).responsavel).toBe(false)
+    expect(chaveModelo('retorno', true)).toBe('modeloRetornoResp')
+    expect(chaveModelo('aniversario', false)).toBe('modeloAniversario')
   })
   it('gera link wa.me codificado', () => {
     expect(linkWhatsApp('5531997115766', 'Olá! 🎉')).toBe('https://wa.me/5531997115766?text=Ol%C3%A1!%20%F0%9F%8E%89')
