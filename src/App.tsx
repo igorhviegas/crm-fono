@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
-import { entrarComGoogle, sair, useConfig, useMensagens, usePacientes, useSessao } from './data'
+import { entrarComGoogle, sair, salvaConfig, useConfig, useMensagens, usePacientes, useSessao } from './data'
 import { aniversariantes, formataTelefone, hojeSP, type Filtro, type Paciente, type Tipo } from './domain'
-import { ConfigModal, ImportarModal, MensagemModal, PacienteModal, PerfilModal } from './modals'
+import { ConfigModal, ImportarModal, ListaModal, MensagemModal, PacienteModal, PerfilModal } from './modals'
 import { btn, cls } from './ui'
 
 const Marca = () => (
@@ -50,7 +50,7 @@ export default function App() {
 }
 
 type Aberto =
-  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'config' }
+  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'config' } | { t: 'planos' } | { t: 'servicos' }
   | { t: 'perfil'; p: Paciente } | { t: 'msg'; p: Paciente; tipo: Tipo }
   | null
 
@@ -62,6 +62,7 @@ function Painel({ email }: { email: string }) {
   const [busca, setBusca] = useState('')
   const [convenio, setConvenio] = useState('')
   const [arquivados, setArquivados] = useState(false)
+  const [menu, setMenu] = useState(false)
   const [aberto, setAberto] = useState<Aberto>(null)
   const hoje = hojeSP()
 
@@ -70,6 +71,7 @@ function Painel({ email }: { email: string }) {
   const q = busca.trim().toLowerCase()
   const qDigitos = q.replace(/\D/g, '')
   const convenios = [...new Set(lista.map((p) => p.convenio).filter(Boolean) as string[])].sort()
+  const planos = [...new Set([...config.planos, ...convenios])] // inclui planos já usados mesmo que removidos da lista
   const visiveis = lista.filter(
     (p) =>
       p.arquivado === arquivados &&
@@ -87,8 +89,24 @@ function Painel({ email }: { email: string }) {
       <header className="flex items-center justify-between gap-2 py-3">
         <Marca />
         <div className="flex items-center gap-1 text-sm">
-          <button aria-label="Configurações" className="size-11 text-xl" onClick={() => setAberto({ t: 'config' })}>⚙</button>
           <button className="min-h-11 px-2 text-tinta/60" title={email} onClick={sair}>Sair</button>
+          <div className="relative">
+            <button aria-label="Menu" aria-expanded={menu} className="flex size-11 flex-col items-center justify-center gap-1.5" onClick={() => setMenu(!menu)}>
+              <span className="h-0.5 w-6 bg-tinta" /><span className="h-0.5 w-6 bg-tinta" /><span className="h-0.5 w-6 bg-tinta" />
+            </button>
+            {menu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
+                <nav className="absolute right-0 z-40 mt-1 w-56 overflow-hidden rounded-2xl border border-ouro/40 bg-white shadow-lg">
+                  {([['config', 'Gerenciar mensagens'], ['planos', 'Planos de saúde'], ['servicos', 'Serviços']] as const).map(([t, rotulo]) => (
+                    <button key={t} className="block min-h-12 w-full px-4 text-left hover:bg-ouro-claro" onClick={() => { setMenu(false); setAberto({ t }) }}>
+                      {rotulo}
+                    </button>
+                  ))}
+                </nav>
+              </>
+            )}
+          </div>
         </div>
       </header>
 
@@ -182,8 +200,26 @@ function Painel({ email }: { email: string }) {
         )}
       </section>
 
-      {aberto?.t === 'novo' && <PacienteModal paciente={null} convenios={convenios} onClose={() => setAberto(null)} />}
-      {aberto?.t === 'editar' && <PacienteModal paciente={aberto.p} convenios={convenios} onClose={() => setAberto(null)} />}
+      {aberto?.t === 'novo' && <PacienteModal paciente={null} planos={planos} servicos={config.servicos} onClose={() => setAberto(null)} />}
+      {aberto?.t === 'editar' && <PacienteModal paciente={aberto.p} planos={planos} servicos={config.servicos} onClose={() => setAberto(null)} />}
+      {aberto?.t === 'planos' && (
+        <ListaModal
+          titulo="Planos de saúde"
+          descricao="Os planos e convênios que a clínica atende. Eles aparecem como sugestão ao cadastrar um paciente."
+          itens={config.planos}
+          onSalvar={(planos) => salvaConfig({ ...config, planos })}
+          onClose={() => setAberto(null)}
+        />
+      )}
+      {aberto?.t === 'servicos' && (
+        <ListaModal
+          titulo="Serviços"
+          descricao="Os tipos de atendimento da clínica. Remover um serviço daqui não altera pacientes já cadastrados."
+          itens={config.servicos}
+          onSalvar={(servicos) => salvaConfig({ ...config, servicos })}
+          onClose={() => setAberto(null)}
+        />
+      )}
       {aberto?.t === 'perfil' && (
         <PerfilModal
           paciente={aberto.p}

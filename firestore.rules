@@ -66,8 +66,10 @@ service cloud.firestore {
     match /config/{doc} {
       allow read: if autorizada();
       allow write: if autorizada()
-        && request.resource.data.keys().hasOnly(['nomeClinica', 'modeloAniversario', 'modeloAniversarioResp', 'modeloRetorno', 'modeloRetornoResp'])
+        && request.resource.data.keys().hasOnly(['nomeClinica', 'modeloAniversario', 'modeloAniversarioResp', 'modeloRetorno', 'modeloRetornoResp', 'planos', 'servicos'])
         && request.resource.data.nomeClinica is string && request.resource.data.nomeClinica.size() <= 100
+        && (!('planos' in request.resource.data) || (request.resource.data.planos is list && request.resource.data.planos.size() <= 60))
+        && (!('servicos' in request.resource.data) || (request.resource.data.servicos is list && request.resource.data.servicos.size() <= 60))
         && textoOpcional(request.resource.data, 'modeloAniversario', 1000)
         && textoOpcional(request.resource.data, 'modeloAniversarioResp', 1000)
         && textoOpcional(request.resource.data, 'modeloRetorno', 1000)

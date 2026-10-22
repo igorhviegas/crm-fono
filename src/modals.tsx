@@ -3,7 +3,7 @@ import { geraArte, salvaArte } from './art'
 import { lerCsv, type Resultado } from './csv'
 import { confirmaEnvio, importaPacientes, registraMensagem, salvaConfig, salvaPaciente, type Config, type Msg } from './data'
 import {
-  ATENDIMENTOS, CONVENIOS_SUGERIDOS, chaveModelo, destinatarioDe, formataTelefone, linkWhatsApp, montaMensagem,
+  chaveModelo, destinatarioDe, formataTelefone, linkWhatsApp, montaMensagem,
   normalizaNascimento, normalizaTelefone, variaveisInvalidas, type Destinatario, type Paciente, type Tipo,
 } from './domain'
 import { btn, Campo, cls, Erro, Modal } from './ui'
@@ -11,7 +11,9 @@ import { btn, Campo, cls, Erro, Modal } from './ui'
 const msgErro = () => 'Não foi possível salvar. Verifique a conexão e tente novamente.'
 const caixa = 'min-h-12 w-full rounded-xl border border-tinta/20 bg-white px-4 focus:border-ouro focus:outline-none'
 
-export function PacienteModal({ paciente, convenios, onClose }: { paciente: Paciente | null; convenios: string[]; onClose: () => void }) {
+export function PacienteModal({
+  paciente, planos, servicos, onClose,
+}: { paciente: Paciente | null; planos: string[]; servicos: string[]; onClose: () => void }) {
   const [nome, setNome] = useState(paciente?.nome ?? '')
   const [tel, setTel] = useState(paciente?.whatsapp ? formataTelefone(paciente.whatsapp) : '')
   const [nasc, setNasc] = useState(paciente?.nascimento ?? '')
@@ -75,15 +77,16 @@ export function PacienteModal({ paciente, convenios, onClose }: { paciente: Paci
       </fieldset>
 
       <label className="mb-4 block">
-        <span className="mb-1 block text-sm font-medium">Convênio (opcional)</span>
-        <input list="convenios" value={convenio} onChange={(e) => setConvenio(e.target.value)} className={caixa} placeholder="Particular, Amagis…" />
-        <datalist id="convenios">{[...new Set([...CONVENIOS_SUGERIDOS, ...convenios])].map((c) => <option key={c} value={c} />)}</datalist>
+        <span className="mb-1 block text-sm font-medium">Plano de saúde (opcional)</span>
+        <input list="planos" value={convenio} onChange={(e) => setConvenio(e.target.value)} className={caixa} placeholder="Particular, Amagis…" />
+        <datalist id="planos">{planos.map((c) => <option key={c} value={c} />)}</datalist>
       </label>
       <label className="mb-4 block">
-        <span className="mb-1 block text-sm font-medium">Tipo de atendimento (opcional)</span>
+        <span className="mb-1 block text-sm font-medium">Serviço (opcional)</span>
         <select value={atend} onChange={(e) => setAtend(e.target.value)} className={caixa}>
           <option value="">—</option>
-          {ATENDIMENTOS.map((a) => <option key={a}>{a}</option>)}
+          {/* mantém o valor já salvo mesmo que o serviço tenha sido removido da lista */}
+          {[...new Set([...servicos, ...(atend ? [atend] : [])])].map((a) => <option key={a}>{a}</option>)}
         </select>
       </label>
       <Campo rotulo="Observações (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} dica="Só informações administrativas. Não escreva diagnóstico ou dados clínicos." />
@@ -298,7 +301,7 @@ export function ConfigModal({ config, onClose }: { config: Config; onClose: () =
   }
 
   return (
-    <Modal titulo="Configurações" onClose={onClose}>
+    <Modal titulo="Gerenciar mensagens" onClose={onClose}>
       <Erro>{erro}</Erro>
       <Campo rotulo="Nome da clínica" value={c.nomeClinica} onChange={(e) => setC({ ...c, nomeClinica: e.target.value })} />
       <p className="mb-4 text-xs text-tinta/50">
@@ -312,6 +315,60 @@ export function ConfigModal({ config, onClose }: { config: Config; onClose: () =
         </label>
       ))}
       <button onClick={salvar} className={cls(btn.base, btn.ouro, 'w-full')}>Salvar</button>
+    </Modal>
+  )
+}
+
+/** Edita uma lista simples (planos de saúde ou serviços). Remover da lista não altera pacientes já cadastrados. */
+export function ListaModal({
+  titulo, descricao, itens, onSalvar, onClose,
+}: { titulo: string; descricao: string; itens: string[]; onSalvar: (itens: string[]) => Promise<void>; onClose: () => void }) {
+  const [lista, setLista] = useState(itens)
+  const [novo, setNovo] = useState('')
+  const [erro, setErro] = useState('')
+  const [salvando, setSalvando] = useState(false)
+
+  const adiciona = () => {
+    const v = novo.trim().slice(0, 60)
+    if (!v) return
+    if (lista.some((x) => x.toLowerCase() === v.toLowerCase())) return setErro('Esse item já está na lista.')
+    setLista([...lista, v])
+    setNovo('')
+    setErro('')
+  }
+
+  async function salvar() {
+    setSalvando(true)
+    try {
+      await onSalvar(lista)
+      onClose()
+    } catch {
+      setErro(msgErro())
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <Modal titulo={titulo} onClose={onClose}>
+      <p className="mb-4 text-sm text-tinta/70">{descricao}</p>
+      <Erro>{erro}</Erro>
+      <form className="mb-4 flex gap-2" onSubmit={(e) => { e.preventDefault(); adiciona() }}>
+        <input value={novo} onChange={(e) => setNovo(e.target.value)} placeholder="Adicionar novo…" aria-label="Novo item" className={caixa} />
+        <button type="submit" className={cls(btn.base, btn.preto, 'shrink-0')}>Adicionar</button>
+      </form>
+      {lista.length === 0 ? (
+        <p className="mb-4 text-sm text-tinta/50">A lista está vazia.</p>
+      ) : (
+        <ul className="mb-5 divide-y divide-tinta/10">
+          {lista.map((x) => (
+            <li key={x} className="flex items-center justify-between gap-3">
+              <span className="py-3">{x}</span>
+              <button aria-label={`Remover ${x}`} className="size-11 text-xl text-tinta/40 hover:text-red-700" onClick={() => setLista(lista.filter((y) => y !== x))}>×</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button disabled={salvando} onClick={salvar} className={cls(btn.base, btn.ouro, 'w-full')}>{salvando ? 'Salvando…' : 'Salvar'}</button>
     </Modal>
   )
 }

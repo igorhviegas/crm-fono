@@ -5,7 +5,7 @@ import {
   addDoc, collection, collectionGroup, deleteField, doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc, writeBatch,
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
-import { CLINICA_PADRAO, MODELOS_PADRAO, type ChaveModelo, type Destinatario, type Paciente, type Tipo } from './domain'
+import { ATENDIMENTOS, CLINICA_PADRAO, CONVENIOS_SUGERIDOS, MODELOS_PADRAO, type ChaveModelo, type Destinatario, type Paciente, type Tipo } from './domain'
 import type { Linha } from './csv'
 
 export type Sessao = { estado: 'carregando' | 'deslogada' | 'sem-acesso' | 'ok'; user: User | null }
@@ -43,9 +43,10 @@ export function usePacientes(ativo: boolean): Paciente[] | null {
   return ps
 }
 
-export type Config = { nomeClinica: string } & Record<ChaveModelo, string>
+// planos = planos de saúde/convênios; servicos = tipos de atendimento. Ambos editáveis pelo menu.
+export type Config = { nomeClinica: string; planos: string[]; servicos: string[] } & Record<ChaveModelo, string>
 
-const CONFIG_PADRAO: Config = { nomeClinica: CLINICA_PADRAO, ...MODELOS_PADRAO }
+const CONFIG_PADRAO: Config = { nomeClinica: CLINICA_PADRAO, planos: CONVENIOS_SUGERIDOS, servicos: ATENDIMENTOS, ...MODELOS_PADRAO }
 
 export function useConfig(ativo: boolean): Config {
   const [c, setC] = useState<Config>(CONFIG_PADRAO)

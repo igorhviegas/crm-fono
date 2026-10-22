@@ -75,5 +75,7 @@ describe('Firestore rules', () => {
     const db = como('barbara@exemplo.com')
     await assertSucceeds(setDoc(doc(db, 'config/clinica'), { nomeClinica: 'X', modeloAniversario: 'Oi {nome}' }))
     await assertFails(setDoc(doc(db, 'config/clinica'), { nomeClinica: 'X', modeloAniversario: 'a', extra: 1 }))
+    await assertSucceeds(setDoc(doc(db, 'config/clinica'), { nomeClinica: 'X', modeloAniversario: 'a', planos: ['IPSM'], servicos: ['Audiometria'] }))
+    await assertFails(setDoc(doc(db, 'config/clinica'), { nomeClinica: 'X', planos: 'IPSM' }))
   })
 })
