@@ -271,7 +271,7 @@ function Painel({ email }: { email: string }) {
             ) : visiveis.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-tinta/20 px-4 py-8 text-center">
                 <p>{lista.length === 0 ? 'Nenhum paciente ainda.' : 'Nada encontrado.'}</p>
-                <p className="mt-1 text-sm text-tinta/60">{lista.length === 0 ? 'Cadastre o primeiro ou importe uma planilha.' : 'Confira a grafia ou limpe os filtros.'}</p>
+                <p className="mt-1 text-sm text-tinta/60">{lista.length === 0 ? 'Cadastre o primeiro ou importe fichas em Word.' : 'Confira a grafia ou limpe os filtros.'}</p>
                 {lista.length > 0 && <button className={cls(btn.base, btn.linha, 'mt-3')} onClick={() => { setBusca(''); setConvenio('') }}>Limpar filtros</button>}
               </div>
             ) : (

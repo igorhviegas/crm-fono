@@ -290,7 +290,15 @@ export function ImportarModal({ existentes, onClose }: { existentes: Paciente[];
       <p className="mb-4 text-sm text-tinta/70">
         Escolha uma ou mais fichas <b>.docx</b>. O sistema lê só o <b>nome</b>, a <b>data de nascimento (DN)</b>, as <b>datas de atendimento</b>, o tipo de serviço e o responsável. O conteúdo clínico <b>não</b> é copiado.
       </p>
-      <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple className="mb-4 block w-full text-sm" onChange={(e) => ler(e.target.files)} />
+      <label
+        className="mb-4 flex min-h-32 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-ouro/60 px-4 text-center hover:bg-ouro-claro focus-within:bg-ouro-claro"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); ler(e.dataTransfer.files) }}
+      >
+        <span className={cls(btn.base, btn.preto, 'pointer-events-none')}>{lidos.length ? 'Escolher outros arquivos' : 'Escolher fichas (.docx)'}</span>
+        <span className="text-xs text-tinta/60">{lidos.length ? `${lidos.length} arquivo(s) escolhido(s)` : 'ou arraste os arquivos para cá'}</span>
+        <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple className="sr-only" onChange={(e) => ler(e.target.files)} />
+      </label>
       {lidos.length > 0 && (
         <ul className="mb-4 divide-y divide-tinta/10 rounded-xl bg-ouro-claro text-sm">
           {lidos.map((l, i) => (
@@ -317,7 +325,7 @@ export function ImportarModal({ existentes, onClose }: { existentes: Paciente[];
       )}
       {fim && <p className="mb-4 rounded-xl bg-ouro-claro p-3 text-sm font-medium">{fim}</p>}
       <button disabled={!fichas.length || ocupado || !!fim} onClick={importar} className={cls(btn.base, btn.ouro, 'w-full')}>
-        {ocupado ? 'Importando…' : `Importar ${fichas.length || ''} paciente(s)`}
+        {ocupado ? 'Importando…' : fichas.length ? `Importar ${fichas.length} paciente(s)` : 'Escolha as fichas acima para importar'}
       </button>
     </Modal>
   )
