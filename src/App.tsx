@@ -289,8 +289,8 @@ function Painel({ email }: { email: string }) {
                         <span className="min-w-0 flex-1">
                           <span className="block truncate font-medium">{p.nome}</span>
                           <span className="block truncate text-sm text-tinta/60">
-                            {formataTelefone(p.whatsapp || p.responsavelWhatsapp || '')}
-                            {!p.whatsapp && ' (resp.)'}
+                            {p.whatsapp || p.responsavelWhatsapp ? formataTelefone(p.whatsapp || p.responsavelWhatsapp || '') : <span className="text-red-700">sem WhatsApp</span>}
+                            {!p.whatsapp && p.responsavelWhatsapp && ' (resp.)'}
                             {p.convenio && ` · ${p.convenio}`}
                           </span>
                         </span>
