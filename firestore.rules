@@ -13,17 +13,21 @@ service cloud.firestore {
       return !(k in d) || (d[k] is string && d[k].size() <= max);
     }
 
+    function dataOpcional(d, k) {
+      return !(k in d) || (d[k] is string && d[k].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'));
+    }
+
     function pacienteValido(d) {
       return d.keys().hasOnly(['nome', 'whatsapp', 'nascimento', 'observacoes', 'arquivado', 'criadoEm',
-                               'destinatario', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento'])
+                               'destinatario', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento',
+                               'primeiroAtendimento', 'ultimoAtendimento'])
         && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 120
         && d.destinatario in ['paciente', 'responsavel']
-        // WhatsApp do paciente pode ficar vazio só quando as mensagens vão para o responsável
-        && d.whatsapp is string
-        && (d.whatsapp.matches('^55[0-9]{10,11}$') || (d.whatsapp == '' && d.destinatario == 'responsavel'))
-        && (d.destinatario == 'paciente'
-            || ('responsavelWhatsapp' in d && d.responsavelWhatsapp.matches('^55[0-9]{10,11}$')))
+        // WhatsApp pode ficar vazio (paciente importado de ficha); a tela avisa e bloqueia o envio
+        && d.whatsapp is string && (d.whatsapp == '' || d.whatsapp.matches('^55[0-9]{10,11}$'))
         && (!('responsavelWhatsapp' in d) || (d.responsavelWhatsapp is string && d.responsavelWhatsapp.matches('^55[0-9]{10,11}$')))
+        && dataOpcional(d, 'primeiroAtendimento')
+        && dataOpcional(d, 'ultimoAtendimento')
         && d.nascimento is string && d.nascimento.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && textoOpcional(d, 'observacoes', 500)
         && textoOpcional(d, 'responsavelNome', 120)

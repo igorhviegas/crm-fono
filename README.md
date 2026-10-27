@@ -29,4 +29,4 @@ npm run build          # checagem de tipos + build
 Branco, preto e dourado (`#B08D4F`), inspirada no logo da Bárbara. Para o logo aparecer na arte de aniversário, salve o arquivo (PNG com fundo transparente) em `public/logo.png`. Referência usada: `docs/brand/ref-perfil.jpg` (150px, baixa resolução).
 
 ## Fora desta versão
-PDFs (exige Firebase Storage/plano Blaze) e agenda. Dados reais de pacientes só depois de revisar `docs/privacidade-e-lgpd.md` (a escrever).
+Importação: fichas em Word (.docx) — lê só nome, DN, datas de atendimento, serviço e responsável; nada clínico. PDFs/anexos (exigem Firebase Storage/plano Blaze) e agenda ficam para depois. Dados reais de pacientes só depois de revisar `docs/privacidade-e-lgpd.md` (a escrever).

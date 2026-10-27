@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
 import { geraArte, salvaArte } from './art'
-import { lerCsv, type Resultado } from './csv'
-import { confirmaEnvio, importaPacientes, registraMensagem, salvaConfig, salvaPaciente, type Config, type Msg } from './data'
+import { extraiFicha, lerDocx, type Ficha } from './ficha'
+import { confirmaEnvio, importaFichas, registraMensagem, salvaConfig, salvaPaciente, type Config, type Msg } from './data'
 import {
-  chaveModelo, destinatarioDe, formataTelefone, linkWhatsApp, montaMensagem,
+  chaveModelo, dataBR, destinatarioDe, formataTelefone, hojeSP, linkWhatsApp, montaMensagem,
   normalizaNascimento, normalizaTelefone, variaveisInvalidas, type Destinatario, type Paciente, type Tipo,
 } from './domain'
 import { btn, Campo, cls, Erro, Modal } from './ui'
@@ -23,6 +23,8 @@ export function PacienteModal({
   const [convenio, setConvenio] = useState(paciente?.convenio ?? '')
   const [atend, setAtend] = useState(paciente?.atendimento ?? '')
   const [obs, setObs] = useState(paciente?.observacoes ?? '')
+  const [primeiro, setPrimeiro] = useState(paciente?.primeiroAtendimento ?? '')
+  const [ultimo, setUltimo] = useState(paciente?.ultimoAtendimento ?? '')
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
 
@@ -33,14 +35,13 @@ export function PacienteModal({
     if (!nome.trim()) return setErro('Informe o nome do paciente.')
     if (whatsapp === null) return setErro('WhatsApp do paciente inválido. Use DDD + número, ex.: (31) 99999-9999.')
     if (responsavelWhatsapp === null) return setErro('WhatsApp do responsável inválido. Use DDD + número.')
-    if (dest === 'paciente' && !whatsapp) return setErro('Informe o WhatsApp do paciente (ou escolha enviar ao responsável).')
-    if (dest === 'responsavel' && !responsavelWhatsapp) return setErro('Informe o WhatsApp do responsável.')
     if (!nascimento) return setErro('Data de nascimento inválida.')
     setSalvando(true)
     try {
       await salvaPaciente(paciente?.id ?? null, {
         nome: nome.trim(), whatsapp: whatsapp!, nascimento, arquivado, destinatario: dest,
         responsavelNome: respNome, responsavelWhatsapp: responsavelWhatsapp!, convenio, atendimento: atend, observacoes: obs,
+        primeiroAtendimento: primeiro, ultimoAtendimento: ultimo,
       })
       onClose()
     } catch {
@@ -89,6 +90,10 @@ export function PacienteModal({
           {[...new Set([...servicos, ...(atend ? [atend] : [])])].map((a) => <option key={a}>{a}</option>)}
         </select>
       </label>
+      <div className="grid grid-cols-2 gap-3">
+        <Campo rotulo="1º atendimento (DT)" type="date" value={primeiro} onChange={(e) => setPrimeiro(e.target.value)} />
+        <Campo rotulo="Último atendimento" type="date" value={ultimo} onChange={(e) => setUltimo(e.target.value)} />
+      </div>
       <Campo rotulo="Observações (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} dica="Só informações administrativas. Não escreva diagnóstico ou dados clínicos." />
 
       <button disabled={salvando} onClick={() => salvar()} className={cls(btn.base, btn.ouro, 'w-full')}>
@@ -122,6 +127,9 @@ export function PerfilModal({
         {linha('Mensagens vão para', dest.responsavel ? `Responsável (${dest.nome.split(' ')[0]})` : 'O paciente')}
         {linha('Convênio', paciente.convenio)}
         {linha('Atendimento', paciente.atendimento)}
+        {linha('1º atendimento (DT)', paciente.primeiroAtendimento && dataBR(paciente.primeiroAtendimento))}
+        {linha('Último atendimento', paciente.ultimoAtendimento && dataBR(paciente.ultimoAtendimento))}
+        {!dest.tel && <p className="py-2 text-sm font-medium text-red-700">Sem WhatsApp — adicione em “Editar cadastro” para enviar mensagens.</p>}
         {linha('Observações', paciente.observacoes)}
         {paciente.arquivado && <p className="py-2 text-sm font-medium text-tinta/60">Cadastro arquivado</p>}
       </div>
@@ -191,16 +199,22 @@ export function MensagemModal({ paciente, tipo, config, onClose }: { paciente: P
         </>
       )}
       <p className="mb-3 text-sm text-tinta/70">
-        Para: <b>{dest.nome}</b>{dest.responsavel && ' (responsável)'} · {formataTelefone(dest.tel)}
+        Para: <b>{dest.nome}</b>{dest.responsavel && ' (responsável)'}{dest.tel && ` · ${formataTelefone(dest.tel)}`}
       </p>
       <label className="mb-4 block">
         <span className="mb-1 block text-sm font-medium">Mensagem (você pode editar)</span>
         <textarea value={msg} onChange={(e) => setMsg(e.target.value)} rows={6} className="w-full rounded-xl border border-tinta/20 p-3 focus:border-ouro focus:outline-none" />
       </label>
-      <a href={linkWhatsApp(dest.tel, msg)} onClick={aoAbrir} target="_blank" rel="noopener noreferrer" className={cls(btn.base, btn.preto, 'w-full')}>
-        Abrir no WhatsApp
-      </a>
-      <p className="mt-2 text-center text-xs text-tinta/50">O WhatsApp abre com a mensagem pronta; você revisa e envia.</p>
+      {dest.tel ? (
+        <>
+          <a href={linkWhatsApp(dest.tel, msg)} onClick={aoAbrir} target="_blank" rel="noopener noreferrer" className={cls(btn.base, btn.preto, 'w-full')}>
+            Abrir no WhatsApp
+          </a>
+          <p className="mt-2 text-center text-xs text-tinta/50">O WhatsApp abre com a mensagem pronta; você revisa e envia.</p>
+        </>
+      ) : (
+        <p className="rounded-xl bg-red-50 p-3 text-center text-sm text-red-700">Este paciente ainda não tem WhatsApp. Feche e use “Editar cadastro” para adicionar.</p>
+      )}
       {aviso && <p className="mt-3 text-center text-xs text-red-700">{aviso}</p>}
       {msgId && (
         <div className="mt-4 rounded-xl bg-ouro-claro p-4 text-center text-sm">
@@ -223,16 +237,36 @@ export function MensagemModal({ paciente, tipo, config, onClose }: { paciente: P
   )
 }
 
+type Lido = { arquivo: string; ficha?: Ficha; erro?: string }
+
 export function ImportarModal({ existentes, onClose }: { existentes: Paciente[]; onClose: () => void }) {
-  const [res, setRes] = useState<Resultado | null>(null)
+  const [lidos, setLidos] = useState<Lido[]>([])
   const [fim, setFim] = useState('')
   const [ocupado, setOcupado] = useState(false)
+  const fichas = lidos.flatMap((l) => (l.ficha ? [l.ficha] : []))
+
+  async function ler(files: FileList | null) {
+    setFim('')
+    const hoje = hojeSP()
+    setLidos(
+      await Promise.all(
+        [...(files ?? [])].map(async (f): Promise<Lido> => {
+          try {
+            const r = extraiFicha(lerDocx(new Uint8Array(await f.arrayBuffer())), hoje)
+            return 'erro' in r ? { arquivo: f.name, erro: r.erro } : { arquivo: f.name, ficha: r }
+          } catch {
+            return { arquivo: f.name, erro: 'Não consegui ler este arquivo. Ele precisa ser um Word moderno (.docx); se for .doc, abra no Word e use Salvar como → .docx.' }
+          }
+        }),
+      ),
+    )
+  }
 
   async function importar() {
     setOcupado(true)
     try {
-      const { novos, repetidos } = await importaPacientes(res!.validas, existentes)
-      setFim(`${novos} paciente(s) importado(s)${repetidos ? `, ${repetidos} já existiam` : ''}.`)
+      const { novos, atualizados, repetidos } = await importaFichas(fichas, existentes)
+      setFim(`${novos} paciente(s) novo(s)${atualizados ? `, ${atualizados} com atendimento atualizado` : ''}${repetidos ? `, ${repetidos} já estavam cadastrados` : ''}. Falta cadastrar o WhatsApp de cada um.`)
     } catch {
       setFim(msgErro())
     }
@@ -240,35 +274,38 @@ export function ImportarModal({ existentes, onClose }: { existentes: Paciente[];
   }
 
   return (
-    <Modal titulo="Importar planilha (CSV)" onClose={onClose}>
+    <Modal titulo="Importar fichas (Word)" onClose={onClose}>
       <p className="mb-4 text-sm text-tinta/70">
-        No Excel ou Google Planilhas: <b>Arquivo → Salvar como → CSV</b>. A primeira linha deve ter as colunas{' '}
-        <b>Nome</b>, <b>WhatsApp</b> (ou Telefone) e <b>Nascimento</b> (dd/mm/aaaa). Opcional: <b>Convênio</b>.
+        Escolha uma ou mais fichas <b>.docx</b>. O sistema lê só o <b>nome</b>, a <b>data de nascimento (DN)</b>, as <b>datas de atendimento</b>, o tipo de serviço e o responsável. O conteúdo clínico <b>não</b> é copiado.
       </p>
-      <input
-        type="file"
-        accept=".csv,text/csv"
-        className="mb-4 block w-full text-sm"
-        onChange={async (e) => {
-          const f = e.target.files?.[0]
-          setFim('')
-          setRes(f ? lerCsv(await f.text()) : null)
-        }}
-      />
-      {res && (
-        <div className="mb-4 rounded-xl bg-ouro-claro p-3 text-sm">
-          <p><b>{res.validas.length}</b> linha(s) prontas para importar.</p>
-          {res.erros.length > 0 && (
-            <details className="mt-2 text-red-700">
-              <summary>{res.erros.length} com problema (serão ignoradas)</summary>
-              <ul className="mt-1 max-h-32 overflow-auto">{res.erros.slice(0, 50).map((e) => <li key={e}>{e}</li>)}</ul>
-            </details>
-          )}
-        </div>
+      <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple className="mb-4 block w-full text-sm" onChange={(e) => ler(e.target.files)} />
+      {lidos.length > 0 && (
+        <ul className="mb-4 divide-y divide-tinta/10 rounded-xl bg-ouro-claro text-sm">
+          {lidos.map((l, i) => (
+            <li key={i} className="p-3">
+              {l.ficha ? (
+                <>
+                  <p className="font-medium">{l.ficha.nome}</p>
+                  <p className="text-tinta/70">
+                    Nascimento {dataBR(l.ficha.nascimento)}
+                    {l.ficha.atendimento && ` · ${l.ficha.atendimento}`}
+                    {l.ficha.responsavelNome && ` · responsável: ${l.ficha.responsavelNome}`}
+                  </p>
+                  <p className="text-tinta/70">
+                    {l.ficha.primeiroAtendimento ? `1º atendimento ${dataBR(l.ficha.primeiroAtendimento)} (${l.ficha.origemPrimeiro === 'documento' ? 'DT do documento' : 'data de criação do arquivo'})` : '1º atendimento: não encontrado'}
+                    {l.ficha.ultimoAtendimento && ` · último ${dataBR(l.ficha.ultimoAtendimento)}`}
+                  </p>
+                </>
+              ) : (
+                <p className="text-red-700"><b>{l.arquivo}</b>: {l.erro}</p>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
       {fim && <p className="mb-4 rounded-xl bg-ouro-claro p-3 text-sm font-medium">{fim}</p>}
-      <button disabled={!res?.validas.length || ocupado || !!fim} onClick={importar} className={cls(btn.base, btn.ouro, 'w-full')}>
-        {ocupado ? 'Importando…' : 'Importar'}
+      <button disabled={!fichas.length || ocupado || !!fim} onClick={importar} className={cls(btn.base, btn.ouro, 'w-full')}>
+        {ocupado ? 'Importando…' : `Importar ${fichas.length || ''} paciente(s)`}
       </button>
     </Modal>
   )

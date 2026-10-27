@@ -152,7 +152,7 @@ function Painel({ email }: { email: string }) {
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <h2 className="font-serif text-2xl font-semibold">Pacientes {pacientes && <span className="text-base text-tinta/50">({lista.filter((p) => !p.arquivado).length})</span>}</h2>
           <div className="flex gap-2">
-            <button className={cls(btn.base, btn.linha)} onClick={() => setAberto({ t: 'importar' })}>Importar CSV</button>
+            <button className={cls(btn.base, btn.linha)} onClick={() => setAberto({ t: 'importar' })}>Importar Word</button>
             <button className={cls(btn.base, btn.preto)} onClick={() => setAberto({ t: 'novo' })}>+ Novo paciente</button>
           </div>
         </div>

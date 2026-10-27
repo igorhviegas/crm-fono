@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { ATENDIMENTOS, CLINICA_PADRAO, CONVENIOS_SUGERIDOS, MODELOS_PADRAO, type ChaveModelo, type Destinatario, type Paciente, type Tipo } from './domain'
-import type { Linha } from './csv'
+import type { Ficha } from './ficha'
 
 export type Sessao = { estado: 'carregando' | 'deslogada' | 'sem-acesso' | 'ok'; user: User | null }
 
@@ -103,7 +103,7 @@ export const confirmaEnvio = (pacienteId: string, msgId: string) =>
 // ---- pacientes ----
 
 type Dados = Omit<Paciente, 'id'>
-const OPCIONAIS = ['observacoes', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento'] as const
+const OPCIONAIS = ['observacoes', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento', 'primeiroAtendimento', 'ultimoAtendimento'] as const
 
 export async function salvaPaciente(id: string | null, d: Dados) {
   const dados: Record<string, unknown> = {
@@ -118,20 +118,36 @@ export async function salvaPaciente(id: string | null, d: Dados) {
   else await addDoc(collection(db, 'pacientes'), { ...dados, criadoEm: serverTimestamp() })
 }
 
-/** Importa em lotes de 400 (limite do Firestore é 500 por batch). Ignora quem já existe (mesmo nome + WhatsApp). */
-export async function importaPacientes(linhas: Linha[], existentes: Paciente[]): Promise<{ novos: number; repetidos: number }> {
-  const chave = (n: string, w: string) => `${n.trim().toLowerCase()}|${w}`
-  const tem = new Set(existentes.map((p) => chave(p.nome, p.whatsapp)))
-  const novas = linhas.filter((l) => !tem.has(chave(l.nome, l.whatsapp)) && tem.add(chave(l.nome, l.whatsapp)))
-  for (let i = 0; i < novas.length; i += 400) {
+/**
+ * Importa fichas do Word. Sem WhatsApp (as fichas não têm telefone): o cadastro é completado depois.
+ * Quem já existe (mesmo nome + nascimento) não é duplicado; só ganha o último atendimento, se for mais novo.
+ */
+export async function importaFichas(fichas: Ficha[], existentes: Paciente[]): Promise<{ novos: number; atualizados: number; repetidos: number }> {
+  const chave = (nome: string, nasc: string) => `${nome.trim().toLowerCase()}|${nasc}`
+  const porChave = new Map(existentes.map((p) => [chave(p.nome, p.nascimento), p]))
+  const ops: ((b: ReturnType<typeof writeBatch>) => void)[] = []
+  let novos = 0, atualizados = 0, repetidos = 0
+  for (const f of fichas) {
+    const k = chave(f.nome, f.nascimento)
+    const ex = porChave.get(k)
+    if (ex) {
+      if (f.ultimoAtendimento && f.ultimoAtendimento > (ex.ultimoAtendimento ?? '')) {
+        ops.push((b) => b.update(doc(db, 'pacientes', ex.id), { ultimoAtendimento: f.ultimoAtendimento }))
+        atualizados++
+      } else repetidos++
+      continue
+    }
+    const novo = doc(collection(db, 'pacientes'))
+    porChave.set(k, { id: novo.id } as Paciente) // evita duplicar dentro do mesmo lote
+    const dados: Record<string, unknown> = { nome: f.nome, whatsapp: '', nascimento: f.nascimento, arquivado: false, destinatario: f.destinatario, criadoEm: serverTimestamp() }
+    for (const c of ['responsavelNome', 'atendimento', 'primeiroAtendimento', 'ultimoAtendimento'] as const) if (f[c]) dados[c] = f[c]
+    ops.push((b) => b.set(novo, dados))
+    novos++
+  }
+  for (let i = 0; i < ops.length; i += 400) {
     const b = writeBatch(db)
-    novas.slice(i, i + 400).forEach((l) =>
-      b.set(doc(collection(db, 'pacientes')), {
-        nome: l.nome, whatsapp: l.whatsapp, nascimento: l.nascimento, arquivado: false, destinatario: 'paciente',
-        ...(l.convenio ? { convenio: l.convenio } : {}), criadoEm: serverTimestamp(),
-      }),
-    )
+    ops.slice(i, i + 400).forEach((op) => op(b))
     await b.commit()
   }
-  return { novos: novas.length, repetidos: linhas.length - novas.length }
+  return { novos, atualizados, repetidos }
 }

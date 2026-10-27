@@ -49,14 +49,14 @@ describe('Firestore rules', () => {
     await assertFails(setDoc(doc(db, 'pacientes/p3'), { ...ok, cpf: '000' }))
     await assertFails(deleteDoc(doc(db, 'pacientes/p1')))
   })
-  it('responsável: paciente sem WhatsApp só vale se o destinatário for o responsável', async () => {
+  it('responsável, convênio e datas de atendimento; WhatsApp pode faltar mas nunca ser inválido', async () => {
     const db = como('barbara@exemplo.com')
-    const crianca = { ...ok, whatsapp: '', destinatario: 'responsavel', responsavelNome: 'Ana', responsavelWhatsapp: '5531911112222', convenio: 'Amagis Saúde', atendimento: 'Fonoterapia' }
+    const crianca = { ...ok, whatsapp: '', destinatario: 'responsavel', responsavelNome: 'Ana', responsavelWhatsapp: '5531911112222', convenio: 'Amagis Saúde', atendimento: 'Fonoterapia', primeiroAtendimento: '2025-07-15', ultimoAtendimento: '2026-08-14' }
     await assertSucceeds(setDoc(doc(db, 'pacientes/c1'), crianca))
-    const { responsavelWhatsapp: _omit, ...semFoneResp } = crianca
-    await assertFails(setDoc(doc(db, 'pacientes/c2'), semFoneResp))
-    await assertFails(setDoc(doc(db, 'pacientes/c3'), { ...ok, whatsapp: '' }))
+    await assertSucceeds(setDoc(doc(db, 'pacientes/c2'), { ...ok, whatsapp: '' })) // importado de ficha Word, sem telefone
+    await assertFails(setDoc(doc(db, 'pacientes/c3'), { ...ok, whatsapp: '123' }))
     await assertFails(setDoc(doc(db, 'pacientes/c4'), { ...crianca, destinatario: 'outro' }))
+    await assertFails(setDoc(doc(db, 'pacientes/c5'), { ...crianca, ultimoAtendimento: '14/08/2026' }))
   })
   it('histórico de mensagens: cria como link_aberto, confirma, nunca apaga nem inventa envio', async () => {
     const db = como('barbara@exemplo.com')

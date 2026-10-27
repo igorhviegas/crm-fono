@@ -6,7 +6,7 @@ export type Tipo = 'aniversario' | 'retorno'
 export type Paciente = {
   id: string
   nome: string
-  whatsapp: string // 55DDDNUMERO; '' só quando o destinatário é o responsável
+  whatsapp: string // 55DDDNUMERO; '' = ainda sem WhatsApp (ex.: veio de uma ficha em Word)
   nascimento: string // AAAA-MM-DD
   observacoes?: string
   arquivado: boolean
@@ -15,7 +15,12 @@ export type Paciente = {
   responsavelWhatsapp?: string
   convenio?: string
   atendimento?: string
+  primeiroAtendimento?: string // AAAA-MM-DD ("DT" das fichas)
+  ultimoAtendimento?: string // AAAA-MM-DD
 }
+
+/** AAAA-MM-DD → DD/MM/AAAA */
+export const dataBR = (iso: string) => iso.split('-').reverse().join('/')
 
 export type ChaveModelo = 'modeloAniversario' | 'modeloAniversarioResp' | 'modeloRetorno' | 'modeloRetornoResp'
 
