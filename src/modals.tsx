@@ -376,13 +376,13 @@ export function MensagemModal({ paciente, tipo, config, onClose, inline }: { pac
   )
 }
 
-type Lido = { arquivo: string; ficha?: Ficha; erro?: string }
+type Lido = { arquivo: string; ficha?: Ficha; bytes?: Uint8Array; erro?: string }
 
 export function ImportarModal({ existentes, onClose }: { existentes: Paciente[]; onClose: () => void }) {
   const [lidos, setLidos] = useState<Lido[]>([])
   const [fim, setFim] = useState('')
   const [ocupado, setOcupado] = useState(false)
-  const fichas = lidos.flatMap((l) => (l.ficha ? [l.ficha] : []))
+  const fichas = lidos.flatMap((l) => (l.ficha ? [{ ficha: l.ficha, arquivo: l.arquivo, bytes: l.bytes! }] : []))
 
   async function ler(files: FileList | null) {
     setFim('')
@@ -391,8 +391,9 @@ export function ImportarModal({ existentes, onClose }: { existentes: Paciente[];
       await Promise.all(
         [...(files ?? [])].map(async (f): Promise<Lido> => {
           try {
-            const r = extraiFicha(lerDocx(new Uint8Array(await f.arrayBuffer())), hoje)
-            return 'erro' in r ? { arquivo: f.name, erro: r.erro } : { arquivo: f.name, ficha: r }
+            const bytes = new Uint8Array(await f.arrayBuffer())
+            const r = extraiFicha(lerDocx(bytes), hoje)
+            return 'erro' in r ? { arquivo: f.name, erro: r.erro } : { arquivo: f.name, ficha: r, bytes }
           } catch {
             return { arquivo: f.name, erro: 'Não consegui ler este arquivo. Ele precisa ser um Word moderno (.docx); se for .doc, abra no Word e use Salvar como → .docx.' }
           }
@@ -404,8 +405,8 @@ export function ImportarModal({ existentes, onClose }: { existentes: Paciente[];
   async function importar() {
     setOcupado(true)
     try {
-      const { novos, atualizados, repetidos } = await importaFichas(fichas, existentes)
-      setFim(`${novos} paciente(s) novo(s)${atualizados ? `, ${atualizados} com atendimento atualizado` : ''}${repetidos ? `, ${repetidos} já estavam cadastrados` : ''}. Falta cadastrar o WhatsApp de cada um.`)
+      const { novos, atualizados, repetidos, relatorios, grandes } = await importaFichas(fichas, existentes)
+      setFim(`${novos} paciente(s) novo(s)${atualizados ? `, ${atualizados} com atendimento atualizado` : ''}${repetidos ? `, ${repetidos} já estavam cadastrados` : ''}. ${relatorios} relatório(s) guardado(s) no perfil${grandes ? ` (${grandes} arquivo(s) grande(s) demais ficaram de fora)` : ''}. Falta cadastrar o WhatsApp dos novos.`)
     } catch {
       setFim(msgErro())
     }
@@ -415,7 +416,7 @@ export function ImportarModal({ existentes, onClose }: { existentes: Paciente[];
   return (
     <Modal titulo="Importar fichas (Word)" onClose={onClose}>
       <p className="mb-4 text-sm text-tinta/70">
-        Escolha uma ou mais fichas <b>.docx</b>. O sistema lê só o <b>nome</b>, a <b>data de nascimento (DN)</b>, as <b>datas de atendimento</b>, o tipo de serviço e o responsável. O conteúdo clínico <b>não</b> é copiado.
+        Escolha uma ou mais fichas <b>.docx</b>. O sistema lê o <b>nome</b>, a <b>data de nascimento (DN)</b>, as <b>datas de atendimento</b>, o tipo de serviço e o responsável, e <b>guarda o arquivo</b> no relatório do paciente. Se a ficha citar <b>Calibração</b>, o retorno é marcado para <b>12 meses</b> após o último atendimento.
       </p>
       <label
         className="mb-4 flex min-h-32 cursor-pointer flex-col items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-ouro/60 px-4 text-center hover:bg-ouro-claro focus-within:bg-ouro-claro"
@@ -437,6 +438,7 @@ export function ImportarModal({ existentes, onClose }: { existentes: Paciente[];
                     Nascimento {dataBR(l.ficha.nascimento)}
                     {l.ficha.atendimento && ` · ${l.ficha.atendimento}`}
                     {l.ficha.responsavelNome && ` · responsável: ${l.ficha.responsavelNome}`}
+                    {l.ficha.lembreteMeses && ` · retorno em ${l.ficha.lembreteMeses} meses (calibração)`}
                   </p>
                   <p className="text-tinta/70">
                     {l.ficha.primeiroAtendimento ? `1º atendimento ${dataBR(l.ficha.primeiroAtendimento)} (${l.ficha.origemPrimeiro === 'documento' ? 'DT do documento' : 'data de criação do arquivo'})` : '1º atendimento: não encontrado'}
