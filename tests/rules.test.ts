@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { afterAll, beforeAll, describe, it } from 'vitest'
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, collectionGroup, getDocs, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, setDoc, updateDoc, deleteDoc, collection, collectionGroup, getDocs, serverTimestamp, Bytes } from 'firebase/firestore'
 
 // Roda com: npm run test:rules (sobe o emulador do Firestore). Só dados fictícios.
 let env: RulesTestEnvironment
@@ -70,6 +70,18 @@ describe('Firestore rules', () => {
     await assertSucceeds(getDocs(collectionGroup(db, 'mensagens')))
     await assertFails(getDocs(collectionGroup(como('estranho@gmail.com'), 'mensagens')))
     await assertFails(getDocs(collectionGroup(env.unauthenticatedContext().firestore(), 'mensagens')))
+  })
+  it('lembrete de retorno 1–12, consultas e relatórios em Word', async () => {
+    const db = como('barbara@exemplo.com')
+    await assertSucceeds(setDoc(doc(db, 'pacientes/l1'), { ...ok, lembreteMeses: 6 }))
+    await assertFails(setDoc(doc(db, 'pacientes/l2'), { ...ok, lembreteMeses: 13 }))
+    await assertFails(setDoc(doc(db, 'pacientes/l2'), { ...ok, lembreteMeses: 0 }))
+    await assertSucceeds(setDoc(doc(db, 'pacientes/p1/consultas/c1'), { data: '2026-10-01', servico: 'Fonoterapia', criadoEm: serverTimestamp() }))
+    await assertFails(setDoc(doc(db, 'pacientes/p1/consultas/c2'), { data: '01/10/2026', servico: 'X', criadoEm: serverTimestamp() }))
+    const arq = (n: number) => ({ nome: 'rel.docx', arquivo: Bytes.fromUint8Array(new Uint8Array(n)), criadoEm: serverTimestamp() })
+    await assertSucceeds(setDoc(doc(db, 'pacientes/p1/relatorios/r1'), arq(1000)))
+    await assertFails(setDoc(doc(db, 'pacientes/p1/relatorios/r2'), arq(950000)))
+    await assertFails(getDoc(doc(como('estranho@gmail.com'), 'pacientes/p1/relatorios/r1')))
   })
   it('config só aceita os campos previstos', async () => {
     const db = como('barbara@exemplo.com')

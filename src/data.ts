@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth'
 import {
-  addDoc, collection, collectionGroup, deleteField, doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc, writeBatch,
+  addDoc, Bytes, collection, collectionGroup, deleteField, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch,
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { ATENDIMENTOS, CLINICA_PADRAO, CONVENIOS_SUGERIDOS, MODELOS_PADRAO, type ChaveModelo, type Destinatario, type Paciente, type Tipo } from './domain'
@@ -114,6 +114,8 @@ export async function salvaPaciente(id: string | null, d: Dados) {
     if (v) dados[k] = v
     else if (id) dados[k] = deleteField() // limpar um campo ao editar remove-o do documento
   }
+  if (d.lembreteMeses) dados.lembreteMeses = d.lembreteMeses
+  else if (id) dados.lembreteMeses = deleteField()
   if (id) await updateDoc(doc(db, 'pacientes', id), dados)
   else await addDoc(collection(db, 'pacientes'), { ...dados, criadoEm: serverTimestamp() })
 }
@@ -150,4 +152,41 @@ export async function importaFichas(fichas: Ficha[], existentes: Paciente[]): Pr
     await b.commit()
   }
   return { novos, atualizados, repetidos }
+}
+
+// ---- consultas e relatórios em Word (subcoleções do paciente) ----
+
+export type Consulta = { id: string; data: string; servico: string }
+export type Relatorio = { id: string; nome: string; criadoEm: Date; bytes: Uint8Array }
+
+function useSub<T>(pacienteId: string, sub: 'consultas' | 'relatorios', campo: string, mapa: (id: string, d: Record<string, any>) => T): T[] { // eslint-disable-line @typescript-eslint/no-explicit-any
+  const [l, setL] = useState<T[]>([])
+  useEffect(
+    () => onSnapshot(query(collection(db, 'pacientes', pacienteId, sub), orderBy(campo, 'desc')), (q) =>
+      setL(q.docs.map((d) => mapa(d.id, d.data({ serverTimestamps: 'estimate' })))),
+    ),
+    [pacienteId], // eslint-disable-line react-hooks/exhaustive-deps
+  )
+  return l
+}
+
+export const useConsultas = (pid: string) => useSub<Consulta>(pid, 'consultas', 'data', (id, d) => ({ id, data: d.data, servico: d.servico }))
+// ponytail: o arquivo vai dentro do documento (limite 1 MB do Firestore); acima disso, migrar para Firebase Storage (plano Blaze)
+export const useRelatorios = (pid: string) =>
+  useSub<Relatorio>(pid, 'relatorios', 'criadoEm', (id, d) => ({ id, nome: d.nome, criadoEm: d.criadoEm.toDate(), bytes: d.arquivo.toUint8Array() }))
+
+export const LIMITE_RELATORIO = 900_000
+
+export const salvaRelatorio = (pacienteId: string, nome: string, bytes: Uint8Array) =>
+  addDoc(collection(db, 'pacientes', pacienteId, 'relatorios'), { nome, arquivo: Bytes.fromUint8Array(bytes), criadoEm: serverTimestamp() })
+
+/** Registra a consulta e mantém 1º/último atendimento e serviço do cadastro em dia (só avança, nunca recua o último). */
+export async function salvaConsulta(p: Paciente, data: string, servico: string) {
+  const b = writeBatch(db)
+  b.set(doc(collection(db, 'pacientes', p.id, 'consultas')), { data, servico, criadoEm: serverTimestamp() })
+  const novo: Record<string, string> = {}
+  if (data >= (p.ultimoAtendimento ?? '')) { novo.ultimoAtendimento = data; if (servico) novo.atendimento = servico }
+  if (!p.primeiroAtendimento || data < p.primeiroAtendimento) novo.primeiroAtendimento = data
+  if (Object.keys(novo).length) b.update(doc(db, 'pacientes', p.id), novo)
+  await b.commit()
 }

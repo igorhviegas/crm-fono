@@ -1,14 +1,18 @@
 import { useEffect, useState } from 'react'
 import { geraArte, salvaArte } from './art'
 import { extraiFicha, lerDocx, type Ficha } from './ficha'
-import { confirmaEnvio, importaFichas, registraMensagem, salvaConfig, salvaPaciente, type Config, type Msg } from './data'
 import {
-  chaveModelo, dataBR, destinatarioDe, formataTelefone, hojeSP, linkWhatsApp, montaMensagem,
+  confirmaEnvio, importaFichas, LIMITE_RELATORIO, registraMensagem, salvaConfig, salvaConsulta, salvaPaciente, salvaRelatorio, useConsultas, useRelatorios,
+  type Config, type Msg,
+} from './data'
+import {
+  chaveModelo, dataBR, destinatarioDe, formataTelefone, hojeSP, vencimentoRetorno, linkWhatsApp, montaMensagem,
   normalizaNascimento, normalizaTelefone, variaveisInvalidas, type Destinatario, type Paciente, type Tipo,
 } from './domain'
 import { btn, Campo, cls, Erro, Modal } from './ui'
 
 const msgErro = () => 'Não foi possível salvar. Verifique a conexão e tente novamente.'
+const hojeISO = () => { const h = hojeSP(); return `${h.a}-${String(h.m).padStart(2, '0')}-${String(h.d).padStart(2, '0')}` }
 const caixa = 'min-h-12 w-full rounded-xl border border-tinta/20 bg-white px-4 focus:border-ouro focus:outline-none'
 
 export function PacienteModal({
@@ -25,6 +29,7 @@ export function PacienteModal({
   const [obs, setObs] = useState(paciente?.observacoes ?? '')
   const [primeiro, setPrimeiro] = useState(paciente?.primeiroAtendimento ?? '')
   const [ultimo, setUltimo] = useState(paciente?.ultimoAtendimento ?? '')
+  const [lembrete, setLembrete] = useState(paciente?.lembreteMeses ?? 0)
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
 
@@ -41,7 +46,7 @@ export function PacienteModal({
       await salvaPaciente(paciente?.id ?? null, {
         nome: nome.trim(), whatsapp: whatsapp!, nascimento, arquivado, destinatario: dest,
         responsavelNome: respNome, responsavelWhatsapp: responsavelWhatsapp!, convenio, atendimento: atend, observacoes: obs,
-        primeiroAtendimento: primeiro, ultimoAtendimento: ultimo,
+        primeiroAtendimento: primeiro, ultimoAtendimento: ultimo, lembreteMeses: lembrete || undefined,
       })
       onClose()
     } catch {
@@ -94,6 +99,14 @@ export function PacienteModal({
         <Campo rotulo="1º atendimento (DT)" type="date" value={primeiro} onChange={(e) => setPrimeiro(e.target.value)} />
         <Campo rotulo="Último atendimento" type="date" value={ultimo} onChange={(e) => setUltimo(e.target.value)} />
       </div>
+      <label className="mb-4 block">
+        <span className="mb-1 block text-sm font-medium">Lembrete de retorno</span>
+        <select value={lembrete} onChange={(e) => setLembrete(+e.target.value)} className={caixa}>
+          <option value={0}>Sem lembrete</option>
+          {Array.from({ length: 12 }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n} {n === 1 ? 'mês' : 'meses'} após o último atendimento</option>)}
+        </select>
+        <span className="mt-1 block text-xs text-tinta/50">O paciente aparece em “Retornos do mês” no painel quando o prazo vencer.</span>
+      </label>
       <Campo rotulo="Observações (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} dica="Só informações administrativas. Não escreva diagnóstico ou dados clínicos." />
 
       <button disabled={salvando} onClick={() => salvar()} className={cls(btn.base, btn.ouro, 'w-full')}>
@@ -113,9 +126,12 @@ const rotuloTipo = { aniversario: 'Aniversário', retorno: 'Retorno' }
 const chip = 'inline-block rounded-full bg-ouro-claro px-2 py-0.5 font-medium'
 
 export function PerfilModal({
-  paciente, mensagens, onMensagem, onEditar, onClose, inline,
-}: { paciente: Paciente; mensagens: Msg[]; onMensagem: (t: Tipo) => void; onEditar: () => void; onClose: () => void; inline?: boolean }) {
+  paciente, mensagens, servicos, onMensagem, onEditar, onClose, inline,
+}: { paciente: Paciente; mensagens: Msg[]; servicos: string[]; onMensagem: (t: Tipo) => void; onEditar: () => void; onClose: () => void; inline?: boolean }) {
   const dest = destinatarioDe(paciente)
+  const [novaConsulta, setNovaConsulta] = useState(false)
+  const consultas = useConsultas(paciente.id)
+  const vence = vencimentoRetorno(paciente)
   const [a, m, d] = [paciente.nascimento.slice(0, 4), paciente.nascimento.slice(5, 7), paciente.nascimento.slice(8)]
   const linha = (r: string, v?: string) => v && <p className="flex justify-between gap-4 py-2.5 text-sm"><span className="text-tinta/60">{r}</span><span className="text-right">{v}</span></p>
 
@@ -130,6 +146,7 @@ export function PerfilModal({
         {linha('Atendimento', paciente.atendimento)}
         {linha('1º atendimento (DT)', paciente.primeiroAtendimento && dataBR(paciente.primeiroAtendimento))}
         {linha('Último atendimento', paciente.ultimoAtendimento && dataBR(paciente.ultimoAtendimento))}
+        {linha('Retorno previsto', vence ?  `${dataBR(vence)} (${paciente.lembreteMeses} ${paciente.lembreteMeses === 1 ? 'mês' : 'meses'})` : undefined)}
         {!dest.tel && <p className="py-2 text-sm font-medium text-red-700">Sem WhatsApp — adicione em “Editar cadastro” para enviar mensagens.</p>}
         {linha('Observações', paciente.observacoes)}
         {paciente.arquivado && <p className="py-2 text-sm font-medium text-tinta/60">Cadastro arquivado</p>}
@@ -139,7 +156,23 @@ export function PerfilModal({
         <button className={cls(btn.base, btn.ouro)} onClick={() => onMensagem('aniversario')}>Parabéns</button>
         <button className={cls(btn.base, btn.preto)} onClick={() => onMensagem('retorno')}>Retorno</button>
       </div>
-      <button className={cls(btn.base, btn.linha, 'mb-6 w-full')} onClick={onEditar}>Editar cadastro</button>
+      <div className="mb-6 grid grid-cols-2 gap-2">
+        <button className={cls(btn.base, btn.linha)} onClick={() => setNovaConsulta(true)}>Nova consulta</button>
+        <button className={cls(btn.base, btn.linha)} onClick={onEditar}>Editar cadastro</button>
+      </div>
+
+      <h3 className="mb-2 font-serif text-xl font-semibold">Consultas</h3>
+      {consultas.length === 0 ? (
+        <p className="mb-6 text-sm text-tinta/60">Nenhuma consulta registrada ainda.</p>
+      ) : (
+        <ul className="mb-6 divide-y divide-tinta/10 text-sm">
+          {consultas.map((c) => (
+            <li key={c.id} className="flex justify-between gap-3 py-2.5"><span className="font-medium">{dataBR(c.data)}</span><span className="text-right text-tinta/70">{c.servico || '—'}</span></li>
+          ))}
+        </ul>
+      )}
+
+      <Relatorios pacienteId={paciente.id} />
 
       <h3 className="mb-2 font-serif text-xl font-semibold">Histórico de mensagens</h3>
       {mensagens.length === 0 ? (
@@ -159,7 +192,101 @@ export function PerfilModal({
           ))}
         </ul>
       )}
+      {novaConsulta && <ConsultaModal paciente={paciente} servicos={servicos} onClose={() => setNovaConsulta(false)} />}
     </Modal>
+  )
+}
+
+export function ConsultaModal({ paciente, servicos, onClose }: { paciente: Paciente; servicos: string[]; onClose: () => void }) {
+  const [data, setData] = useState(hojeISO())
+  const [servico, setServico] = useState(paciente.atendimento ?? '')
+  const [erro, setErro] = useState('')
+  const [salvando, setSalvando] = useState(false)
+
+  async function salvar() {
+    if (!normalizaNascimento(data) || data > hojeISO()) return setErro('Informe uma data de atendimento válida (não pode ser futura).')
+    if (!servico) return setErro('Escolha o tipo de serviço prestado.')
+    setSalvando(true)
+    try {
+      await salvaConsulta(paciente, data, servico)
+      onClose()
+    } catch {
+      setErro(msgErro())
+      setSalvando(false)
+    }
+  }
+
+  return (
+    <Modal titulo={`Nova consulta · ${paciente.nome.split(' ')[0]}`} onClose={onClose}>
+      <Erro>{erro}</Erro>
+      <Campo rotulo="Data do atendimento" type="date" value={data} max={hojeISO()} onChange={(e) => setData(e.target.value)} />
+      <label className="mb-4 block">
+        <span className="mb-1 block text-sm font-medium">Serviço prestado</span>
+        <select value={servico} onChange={(e) => setServico(e.target.value)} className={caixa}>
+          <option value="">—</option>
+          {[...new Set([...servicos, ...(servico ? [servico] : [])])].map((a) => <option key={a}>{a}</option>)}
+        </select>
+      </label>
+      <button disabled={salvando} onClick={salvar} className={cls(btn.base, btn.ouro, 'w-full')}>{salvando ? 'Salvando…' : 'Registrar consulta'}</button>
+    </Modal>
+  )
+}
+
+/** Relatórios .docx do paciente: guarda o arquivo e mostra o texto aqui mesmo, ou baixa o original. */
+function Relatorios({ pacienteId }: { pacienteId: string }) {
+  const lista = useRelatorios(pacienteId)
+  const [aberto, setAberto] = useState<string | null>(null)
+  const [aviso, setAviso] = useState('')
+
+  async function enviar(f: File | undefined) {
+    if (!f) return
+    setAviso('')
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer())
+      if (bytes.length > LIMITE_RELATORIO) return setAviso('Arquivo grande demais (máximo ~900 KB).')
+      lerDocx(bytes) // recusa o que não é .docx
+      await salvaRelatorio(pacienteId, f.name, bytes)
+    } catch {
+      setAviso('Não consegui guardar este arquivo. Ele precisa ser um Word moderno (.docx).')
+    }
+  }
+  const baixar = (r: { nome: string; bytes: Uint8Array }) => {
+    const url = URL.createObjectURL(new Blob([r.bytes as BlobPart]))
+    Object.assign(document.createElement('a'), { href: url, download: r.nome }).click()
+    URL.revokeObjectURL(url)
+  }
+
+  return (
+    <>
+      <h3 className="mb-2 font-serif text-xl font-semibold">Relatórios (Word)</h3>
+      <label className={cls(btn.base, btn.linha, 'mb-3 w-full cursor-pointer focus-within:border-ouro')}>
+        Importar relatório (.docx)
+        <input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" className="sr-only" onChange={(e) => { enviar(e.target.files?.[0]); e.target.value = '' }} />
+      </label>
+      {aviso && <p role="alert" className="mb-3 text-sm text-red-700">{aviso}</p>}
+      {lista.length === 0 ? (
+        <p className="mb-6 text-sm text-tinta/60">Nenhum relatório guardado.</p>
+      ) : (
+        <ul className="mb-6 divide-y divide-tinta/10 text-sm">
+          {lista.map((r) => (
+            <li key={r.id} className="py-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0"><span className="block truncate font-medium">{r.nome}</span><span className="text-xs text-tinta/60">{quando(r.criadoEm)}</span></span>
+                <span className="flex shrink-0 gap-1">
+                  <button className="min-h-11 rounded-full px-3 font-medium hover:bg-ouro-claro" onClick={() => setAberto(aberto === r.id ? null : r.id)}>{aberto === r.id ? 'Ocultar' : 'Ver'}</button>
+                  <button className="min-h-11 rounded-full px-3 font-medium hover:bg-ouro-claro" onClick={() => baixar(r)}>Baixar</button>
+                </span>
+              </div>
+              {aberto === r.id && (
+                <div className="mt-2 max-h-80 space-y-2 overflow-y-auto rounded-xl bg-ouro-claro p-3">
+                  {lerDocx(r.bytes).paragrafos.filter(Boolean).map((t, i) => <p key={i}>{t}</p>)}
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   )
 }
 
