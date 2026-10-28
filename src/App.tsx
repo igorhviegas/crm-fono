@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { entrarComGoogle, sair, salvaConfig, useConfig, useMensagens, usePacientes, useSessao } from './data'
-import { aniversariantes, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, type Filtro, type Paciente, type Tipo } from './domain'
+import { aniversariantes, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, type Filtro, type Paciente, type Tipo } from './domain'
 import { ConfigModal, ImportarModal, ListaModal, MensagemModal, PacienteModal, PerfilModal } from './modals'
 import { btn, cls } from './ui'
 
@@ -115,6 +115,12 @@ function Painel({ email }: { email: string }) {
     return dias === 1 ? 'Amanhã' : `Em ${dias} dias`
   }
   const semana = aniversariantes(lista, 'semana', hoje)
+  const retornos = retornosDoMes(lista, hoje)
+  const hojeISO = `${hoje.a}-${String(hoje.m).padStart(2, '0')}-${String(hoje.d).padStart(2, '0')}`
+  // "Enviado" só vale com envio confirmado neste mês; link aberto não conta.
+  const retornoEnviado = (p: Paciente) =>
+    mensagens.get(p.id)?.some((m) => m.tipo === 'retorno' && m.status === 'envio_confirmado' && m.criadoEm.getFullYear() === hoje.a && m.criadoEm.getMonth() + 1 === hoje.m)
+  const atualizado = (p: Paciente) => lista.find((x) => x.id === p.id) ?? p // o perfil aberto acompanha edições (consulta nova, etc.)
   const pendentes = semana.filter((p) => !parabensEnviado(p)).length
   const sp = { timeZone: 'America/Sao_Paulo' } as const
   const hora = +new Intl.DateTimeFormat('pt-BR', { hour: 'numeric', hourCycle: 'h23', ...sp }).format(new Date())
@@ -237,6 +243,50 @@ function Painel({ email }: { email: string }) {
           )}
         </section>
 
+        <section aria-labelledby="t-ret" className="flex flex-col gap-5 rounded-3xl border border-ouro/40 p-4 sm:p-6">
+          <div>
+            <h2 id="t-ret" className="font-serif text-2xl font-semibold">Retornos do mês</h2>
+            <p className="text-sm text-tinta/60">{retornos.length} paciente{retornos.length === 1 ? '' : 's'} com o prazo de retorno vencendo neste mês</p>
+          </div>
+          {retornos.length === 0 ? (
+            <p className="py-4 text-sm text-tinta/60">Nenhum retorno vencendo neste mês. Defina o “Lembrete de retorno” no cadastro do paciente.</p>
+          ) : (
+            <ul className="-mr-4 flex snap-x gap-3 overflow-x-auto pr-4 sm:mr-0 sm:grid sm:grid-cols-[repeat(auto-fill,minmax(240px,1fr))] sm:overflow-visible sm:pr-0">
+              {retornos.map(({ p, vence }) => {
+                const enviado = retornoEnviado(p)
+                const d = destinatarioDe(p)
+                return (
+                  <li key={p.id} className={cls('flex w-60 shrink-0 snap-start flex-col gap-4 rounded-2xl border p-4 sm:w-auto', vence === hojeISO ? 'border-ouro bg-[#fbf8f1]' : 'border-tinta/15')}>
+                    <button className="flex items-start gap-3 text-left" onClick={() => setAberto({ t: 'perfil', p })}>
+                      <div className={cls('flex h-14 w-[52px] shrink-0 flex-col items-center justify-center rounded-xl', vence === hojeISO ? 'bg-ouro' : 'bg-ouro-claro')}>
+                        <span className="font-serif text-[26px] font-semibold leading-[26px]">{vence.slice(8)}</span>
+                        <span className="text-xs">{MESES[+vence.slice(5, 7) - 1]}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-semibold uppercase tracking-[0.04em] text-tinta/70">{vence === hojeISO ? 'Vence hoje' : vence < hojeISO ? 'Já venceu' : 'Vence neste mês'}</p>
+                        <p className="truncate font-medium">{p.nome}</p>
+                        <p className="truncate text-sm text-tinta/60">Último atendimento {dataBR(p.ultimoAtendimento ?? p.primeiroAtendimento ?? '')} · {d.responsavel ? `para ${primeiroNome(d.nome)} (resp.)` : 'para o paciente'}</p>
+                      </div>
+                    </button>
+                    <div className="flex items-center justify-between gap-2">
+                      {enviado ? (
+                        <span className="rounded-full bg-ouro-claro px-2.5 py-1 text-[13px] font-medium">✓ Enviado</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-tinta/20 px-2.5 py-1 text-[13px] text-tinta/70">
+                          <span aria-hidden className="size-1.5 rounded-full bg-ouro" />Pendente
+                        </span>
+                      )}
+                      <button className={cls(btn.base, enviado ? btn.linha : btn.ouro, 'min-h-10 px-4')} onClick={() => setAberto({ t: 'msg', p, tipo: 'retorno' })}>
+                        {enviado ? 'Reenviar' : 'Retorno'}
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </section>
+
         <section aria-labelledby="t-pac" className="flex flex-wrap items-start gap-6">
           <div className="flex min-w-0 flex-[1_1_400px] flex-col gap-3">
             <div className="flex items-baseline justify-between gap-2">
@@ -306,7 +356,7 @@ function Painel({ email }: { email: string }) {
           {desktop && (
             <aside aria-label="Paciente selecionado" className="min-w-0 flex-[1_1_420px]">
               {aberto?.t === 'perfil' && (
-                <PerfilModal inline paciente={aberto.p} mensagens={mensagens.get(aberto.p.id) ?? []} onMensagem={(tipo) => setAberto({ t: 'msg', p: aberto.p, tipo })} onEditar={() => setAberto({ t: 'editar', p: aberto.p })} onClose={fechar} />
+                <PerfilModal inline paciente={atualizado(aberto.p)} servicos={config.servicos} mensagens={mensagens.get(aberto.p.id) ?? []} onMensagem={(tipo) => setAberto({ t: 'msg', p: aberto.p, tipo })} onEditar={() => setAberto({ t: 'editar', p: aberto.p })} onClose={fechar} />
               )}
               {aberto?.t === 'msg' && <MensagemModal inline key={aberto.p.id + aberto.tipo} paciente={aberto.p} tipo={aberto.tipo} config={config} onClose={() => setAberto({ t: 'perfil', p: aberto.p })} />}
               {!selecionado && (
@@ -339,7 +389,8 @@ function Painel({ email }: { email: string }) {
       )}
       {!desktop && aberto?.t === 'perfil' && (
         <PerfilModal
-          paciente={aberto.p}
+          paciente={atualizado(aberto.p)}
+          servicos={config.servicos}
           mensagens={mensagens.get(aberto.p.id) ?? []}
           onMensagem={(tipo) => setAberto({ t: 'msg', p: aberto.p, tipo })}
           onEditar={() => setAberto({ t: 'editar', p: aberto.p })}

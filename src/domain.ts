@@ -17,6 +17,7 @@ export type Paciente = {
   atendimento?: string
   primeiroAtendimento?: string // AAAA-MM-DD ("DT" das fichas)
   ultimoAtendimento?: string // AAAA-MM-DD
+  lembreteMeses?: number // 1–12: lembrar o retorno N meses após o último atendimento
 }
 
 /** AAAA-MM-DD → DD/MM/AAAA */
@@ -130,3 +131,23 @@ export function montaMensagem(modelo: string, destinatario: string, clinica: str
 }
 
 export const linkWhatsApp = (tel: string, texto: string) => `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`
+
+/** Data (AAAA-MM-DD) em que vence o retorno: último atendimento + N meses (dia 31 em mês curto cai no último dia). */
+export function vencimentoRetorno(p: Paciente): string | null {
+  const base = p.ultimoAtendimento ?? p.primeiroAtendimento
+  if (!p.lembreteMeses || !base) return null
+  const [a, m, d] = base.split('-').map(Number)
+  const t = m - 1 + p.lembreteMeses
+  const ano = a + Math.floor(t / 12)
+  const mes = t % 12
+  const dia = Math.min(d, new Date(Date.UTC(ano, mes + 1, 0)).getUTCDate())
+  return `${ano}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`
+}
+
+/** Pacientes ativos cujo prazo de retorno vence no mês corrente (inclusive dias já passados), em ordem de data. */
+export function retornosDoMes(ps: Paciente[], hoje: Dia): { p: Paciente; vence: string }[] {
+  const mes = `${hoje.a}-${String(hoje.m).padStart(2, '0')}`
+  return ps
+    .flatMap((p) => { const vence = p.arquivado ? null : vencimentoRetorno(p); return vence?.startsWith(mes) ? [{ p, vence }] : [] })
+    .sort((x, y) => x.vence.localeCompare(y.vence))
+}

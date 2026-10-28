@@ -20,12 +20,13 @@ service cloud.firestore {
     function pacienteValido(d) {
       return d.keys().hasOnly(['nome', 'whatsapp', 'nascimento', 'observacoes', 'arquivado', 'criadoEm',
                                'destinatario', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento',
-                               'primeiroAtendimento', 'ultimoAtendimento'])
+                               'primeiroAtendimento', 'ultimoAtendimento', 'lembreteMeses'])
         && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 120
         && d.destinatario in ['paciente', 'responsavel']
         // WhatsApp pode ficar vazio (paciente importado de ficha); a tela avisa e bloqueia o envio
         && d.whatsapp is string && (d.whatsapp == '' || d.whatsapp.matches('^55[0-9]{10,11}$'))
         && (!('responsavelWhatsapp' in d) || (d.responsavelWhatsapp is string && d.responsavelWhatsapp.matches('^55[0-9]{10,11}$')))
+        && (!('lembreteMeses' in d) || (d.lembreteMeses is int && d.lembreteMeses >= 1 && d.lembreteMeses <= 12))
         && dataOpcional(d, 'primeiroAtendimento')
         && dataOpcional(d, 'ultimoAtendimento')
         && d.nascimento is string && d.nascimento.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
@@ -45,6 +46,25 @@ service cloud.firestore {
       allow read: if autorizada();
       allow create, update: if autorizada() && pacienteValido(request.resource.data);
       allow delete: if false; // so arquivar; exclusao definitiva pelo console
+
+      // Consultas: data + servico prestado. Pode apagar (lancamento errado).
+      match /consultas/{cid} {
+        allow read, delete: if autorizada();
+        allow create: if autorizada()
+          && request.resource.data.keys().hasOnly(['data', 'servico', 'criadoEm'])
+          && request.resource.data.data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+          && request.resource.data.servico is string && request.resource.data.servico.size() <= 60;
+      }
+
+      // Relatorios em Word (arquivo dentro do documento, ate ~900 KB). Contem dado clinico: so a equipe autorizada le.
+      match /relatorios/{rid} {
+        allow read, delete: if autorizada();
+        allow create: if autorizada()
+          && request.resource.data.keys().hasOnly(['nome', 'arquivo', 'criadoEm'])
+          && request.resource.data.nome is string && request.resource.data.nome.size() <= 200
+          && request.resource.data.arquivo is bytes && request.resource.data.arquivo.size() <= 900000
+          && request.resource.data.criadoEm == request.time;
+      }
 
       // Historico de mensagens: registra "link_aberto" e depois pode virar "envio_confirmado".
       // Nao guarda o texto da mensagem e nao pode ser apagado.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   aniversariantes, diasAteAniversario, linkWhatsApp, montaMensagem, normalizaNascimento,
-  normalizaTelefone, variaveisInvalidas, destinatarioDe, chaveModelo, type Paciente,
+  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, type Paciente,
 } from './domain'
 
 const p = (nome: string, nascimento: string, arquivado = false): Paciente => ({
@@ -75,5 +75,20 @@ describe('mensagem', () => {
   })
   it('gera link wa.me codificado', () => {
     expect(linkWhatsApp('5531997115766', 'Olá! 🎉')).toBe('https://wa.me/5531997115766?text=Ol%C3%A1!%20%F0%9F%8E%89')
+  })
+})
+
+describe('lembrete de retorno', () => {
+  const r = (ultimo: string, meses: number, arquivado = false): Paciente => ({ ...p('X', '2000-01-01', arquivado), ultimoAtendimento: ultimo, lembreteMeses: meses })
+  it('soma meses ao último atendimento, com virada de ano e mês curto', () => {
+    expect(vencimentoRetorno(r('2026-04-10', 6))).toBe('2026-10-10')
+    expect(vencimentoRetorno(r('2026-11-15', 3))).toBe('2027-02-15')
+    expect(vencimentoRetorno(r('2026-08-31', 1))).toBe('2026-09-30')
+    expect(vencimentoRetorno(p('Sem', '2000-01-01'))).toBeNull()
+  })
+  it('lista só quem vence no mês e não está arquivado', () => {
+    const hoje = { a: 2026, m: 10, d: 21 }
+    const ps = [r('2026-04-25', 6), r('2026-04-05', 6), r('2026-04-25', 5), r('2026-04-25', 6, true)]
+    expect(retornosDoMes(ps, hoje).map((x) => x.vence)).toEqual(['2026-10-05', '2026-10-25'])
   })
 })
