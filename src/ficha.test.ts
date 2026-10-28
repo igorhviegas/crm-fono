@@ -43,7 +43,7 @@ describe('laudo de audiometria (com DT)', () => {
   it('prioriza o DT do documento e ignora a data de calibração', () => {
     expect(extraiFicha(doc, hoje)).toMatchObject({
       primeiroAtendimento: '2025-09-15', origemPrimeiro: 'documento', ultimoAtendimento: '2025-09-15',
-      atendimento: 'Audiometria', responsavelNome: undefined, destinatario: 'paciente',
+      atendimento: 'Audiometria', responsavelNome: undefined, destinatario: 'paciente', lembreteMeses: 12,
     })
   })
 })
@@ -51,6 +51,9 @@ describe('laudo de audiometria (com DT)', () => {
 describe('casos de borda', () => {
   it('rejeita ficha sem DN na primeira linha', () => {
     expect(extraiFicha(para('Fulano de Tal – 30 anos'), hoje)).toHaveProperty('erro')
+  })
+  it('sem a palavra Calibração não marca lembrete', () => {
+    expect(extraiFicha(para('Ana Exemplo – DN 01/01/2000', '10/10/2024 ok'), hoje)).toMatchObject({ lembreteMeses: undefined })
   })
   it('ignora datas no futuro e antes do nascimento', () => {
     const f = extraiFicha({ ...para('Ana Exemplo – DN 01/01/2000', '01/01/1990 erro', '01/01/2030 erro', '10/10/2024 ok') }, hoje)

@@ -59,7 +59,7 @@ service cloud.firestore {
       // Relatorios em Word (arquivo dentro do documento, ate ~900 KB). Contem dado clinico: so a equipe autorizada le.
       match /relatorios/{rid} {
         allow read, delete: if autorizada();
-        allow create: if autorizada()
+        allow create, update: if autorizada()
           && request.resource.data.keys().hasOnly(['nome', 'arquivo', 'criadoEm'])
           && request.resource.data.nome is string && request.resource.data.nome.size() <= 200
           && request.resource.data.arquivo is bytes && request.resource.data.arquivo.size() <= 900000

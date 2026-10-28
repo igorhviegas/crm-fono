@@ -124,34 +124,49 @@ export async function salvaPaciente(id: string | null, d: Dados) {
  * Importa fichas do Word. Sem WhatsApp (as fichas não têm telefone): o cadastro é completado depois.
  * Quem já existe (mesmo nome + nascimento) não é duplicado; só ganha o último atendimento, se for mais novo.
  */
-export async function importaFichas(fichas: Ficha[], existentes: Paciente[]): Promise<{ novos: number; atualizados: number; repetidos: number }> {
+export type Importado = { ficha: Ficha; arquivo: string; bytes: Uint8Array }
+
+export async function importaFichas(
+  importados: Importado[], existentes: Paciente[],
+): Promise<{ novos: number; atualizados: number; repetidos: number; relatorios: number; grandes: number }> {
   const chave = (nome: string, nasc: string) => `${nome.trim().toLowerCase()}|${nasc}`
   const porChave = new Map(existentes.map((p) => [chave(p.nome, p.nascimento), p]))
-  const ops: ((b: ReturnType<typeof writeBatch>) => void)[] = []
-  let novos = 0, atualizados = 0, repetidos = 0
-  for (const f of fichas) {
+  const ops: { run: (b: ReturnType<typeof writeBatch>) => void; peso: number }[] = []
+  let novos = 0, atualizados = 0, repetidos = 0, relatorios = 0, grandes = 0
+  // o arquivo Word original fica guardado no relatório do paciente; mesmo nome de arquivo = mesmo relatório (reimportar não duplica)
+  const guardaRelatorio = (pacienteId: string, arquivo: string, bytes: Uint8Array) => {
+    if (bytes.length > LIMITE_RELATORIO) return void grandes++
+    const ref = doc(db, 'pacientes', pacienteId, 'relatorios', 'docx-' + arquivo.replaceAll('/', '_').slice(0, 150))
+    ops.push({ run: (b) => b.set(ref, { nome: arquivo.slice(0, 200), arquivo: Bytes.fromUint8Array(bytes), criadoEm: serverTimestamp() }), peso: bytes.length })
+    relatorios++
+  }
+  for (const { ficha: f, arquivo, bytes } of importados) {
     const k = chave(f.nome, f.nascimento)
     const ex = porChave.get(k)
     if (ex) {
-      if (f.ultimoAtendimento && f.ultimoAtendimento > (ex.ultimoAtendimento ?? '')) {
-        ops.push((b) => b.update(doc(db, 'pacientes', ex.id), { ultimoAtendimento: f.ultimoAtendimento }))
-        atualizados++
-      } else repetidos++
+      const novo: Record<string, unknown> = {}
+      if (f.ultimoAtendimento && f.ultimoAtendimento > (ex.ultimoAtendimento ?? '')) novo.ultimoAtendimento = f.ultimoAtendimento
+      if (f.lembreteMeses && !ex.lembreteMeses) novo.lembreteMeses = f.lembreteMeses
+      if (Object.keys(novo).length) { ops.push({ run: (b) => b.update(doc(db, 'pacientes', ex.id), novo), peso: 1000 }); atualizados++ } else repetidos++
+      guardaRelatorio(ex.id, arquivo, bytes)
       continue
     }
     const novo = doc(collection(db, 'pacientes'))
-    porChave.set(k, { id: novo.id } as Paciente) // evita duplicar dentro do mesmo lote
+    porChave.set(k, { id: novo.id, ultimoAtendimento: f.ultimoAtendimento, lembreteMeses: f.lembreteMeses } as Paciente) // evita duplicar dentro do mesmo lote
     const dados: Record<string, unknown> = { nome: f.nome, whatsapp: '', nascimento: f.nascimento, arquivado: false, destinatario: f.destinatario, criadoEm: serverTimestamp() }
-    for (const c of ['responsavelNome', 'atendimento', 'primeiroAtendimento', 'ultimoAtendimento'] as const) if (f[c]) dados[c] = f[c]
-    ops.push((b) => b.set(novo, dados))
+    for (const c of ['responsavelNome', 'atendimento', 'primeiroAtendimento', 'ultimoAtendimento', 'lembreteMeses'] as const) if (f[c]) dados[c] = f[c]
+    ops.push({ run: (b) => b.set(novo, dados), peso: 1000 })
     novos++
+    guardaRelatorio(novo.id, arquivo, bytes)
   }
-  for (let i = 0; i < ops.length; i += 400) {
+  // lotes de até 400 operações e ~5 MB (limite do Firestore: 10 MB por lote)
+  for (let i = 0; i < ops.length;) {
     const b = writeBatch(db)
-    ops.slice(i, i + 400).forEach((op) => op(b))
+    let n = 0, peso = 0
+    while (i < ops.length && n < 400 && (n === 0 || peso + ops[i].peso < 5_000_000)) { ops[i].run(b); peso += ops[i].peso; n++; i++ }
     await b.commit()
   }
-  return { novos, atualizados, repetidos }
+  return { novos, atualizados, repetidos, relatorios, grandes }
 }
 
 // ---- consultas e relatórios em Word (subcoleções do paciente) ----

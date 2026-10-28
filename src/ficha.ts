@@ -12,6 +12,7 @@ export type Ficha = {
   atendimento?: string
   responsavelNome?: string
   destinatario: Destinatario
+  lembreteMeses?: number // 12 quando a ficha cita "Calibração" (revisão anual do aparelho)
 }
 
 export type Docx = { paragrafos: string[]; criado?: string; modificado?: string }
@@ -78,6 +79,7 @@ export function extraiFicha(doc: Docx, hoje: Dia): Ficha | { erro: string } {
     nome, nascimento,
     primeiroAtendimento: primeiro, origemPrimeiro: primeiro ? (valida(dt) ? 'documento' : 'arquivo') : undefined,
     ultimoAtendimento: ultimo, atendimento, responsavelNome,
+    lembreteMeses: resto.some((p) => /calibra[çc][ãa]o/i.test(p)) ? 12 : undefined,
     destinatario: idade(nascimento, hoje) < 18 && responsavelNome ? 'responsavel' : 'paciente',
   }
 }
