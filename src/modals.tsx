@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { geraArte, salvaArte } from './art'
 import { extraiFicha, lerDocx, type Ficha } from './ficha'
 import {
-  confirmaEnvio, importaFichas, LIMITE_RELATORIO, registraMensagem, salvaConfig, salvaConsulta, salvaPaciente, salvaRelatorio, useConsultas, useRelatorios,
+  confirmaEnvio, criaConvite, importaFichas, LIMITE_RELATORIO, registraMensagem, salvaConfig, salvaConsulta, salvaPaciente, salvaRelatorio, useConsultas, useRelatorios,
   type Config, type Msg,
 } from './data'
 import {
-  chaveModelo, dataBR, destinatarioDe, formataTelefone, hojeSP, vencimentoRetorno, linkWhatsApp, montaMensagem,
+  chaveModelo, dataBR, destinatarioDe, formataTelefone, hojeSP, idadeEm, vencimentoRetorno, linkWhatsApp, montaMensagem,
   normalizaNascimento, normalizaTelefone, variaveisInvalidas, type Destinatario, type Paciente, type Tipo,
 } from './domain'
 import { btn, Campo, cls, Erro, Modal } from './ui'
@@ -26,6 +26,7 @@ export function PacienteModal({
   const [dest, setDest] = useState<Destinatario>(paciente?.destinatario ?? 'paciente')
   const [convenio, setConvenio] = useState(paciente?.convenio ?? '')
   const [atend, setAtend] = useState(paciente?.atendimento ?? '')
+  const [endereco, setEndereco] = useState(paciente?.endereco ?? '')
   const [obs, setObs] = useState(paciente?.observacoes ?? '')
   const [primeiro, setPrimeiro] = useState(paciente?.primeiroAtendimento ?? '')
   const [ultimo, setUltimo] = useState(paciente?.ultimoAtendimento ?? '')
@@ -45,7 +46,7 @@ export function PacienteModal({
     try {
       await salvaPaciente(paciente?.id ?? null, {
         nome: nome.trim(), whatsapp: whatsapp!, nascimento, arquivado, destinatario: dest,
-        responsavelNome: respNome, responsavelWhatsapp: responsavelWhatsapp!, convenio, atendimento: atend, observacoes: obs,
+        responsavelNome: respNome, responsavelWhatsapp: responsavelWhatsapp!, convenio, atendimento: atend, observacoes: obs, endereco,
         primeiroAtendimento: primeiro, ultimoAtendimento: ultimo, lembreteMeses: lembrete || undefined,
       })
       onClose()
@@ -61,6 +62,7 @@ export function PacienteModal({
       <Campo rotulo="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" autoFocus />
       <Campo rotulo="WhatsApp do paciente" value={tel} onChange={(e) => setTel(e.target.value)} type="tel" inputMode="tel" placeholder="(31) 99999-9999" />
       <Campo rotulo="Data de nascimento" type="date" value={normalizaNascimento(nasc) ?? nasc} onChange={(e) => setNasc(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+      <Campo rotulo="Endereço (opcional)" value={endereco} onChange={(e) => setEndereco(e.target.value)} autoComplete="street-address" />
 
       <fieldset className="mb-4 rounded-xl border border-tinta/15 p-4">
         <legend className="px-2 text-sm font-medium">Responsável (se houver)</legend>
@@ -121,6 +123,60 @@ export function PacienteModal({
   )
 }
 
+/** Gera um link de cadastro (uso único) para o paciente preencher; pode copiar ou abrir o WhatsApp com a mensagem pronta. */
+export function LinkCadastroModal({ planos, clinica, onClose }: { planos: string[]; clinica: string; onClose: () => void }) {
+  const [link, setLink] = useState('')
+  const [erro, setErro] = useState('')
+  const [tel, setTel] = useState('')
+  const [copiado, setCopiado] = useState(false)
+  const criando = useRef(false) // o StrictMode roda o efeito duas vezes; so pode haver um convite por abertura
+  useEffect(() => {
+    if (criando.current) return
+    criando.current = true
+    criaConvite(planos).then(
+      (token) => setLink(`${location.origin}/?cadastro=${token}`),
+      () => setErro(msgErro()),
+    )
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const texto = `Olá! Aqui é da ${clinica}. Para agilizar seu atendimento, preencha seu cadastro pelo link: ${link}`
+  const whats = tel.trim() ? normalizaTelefone(tel) : null
+
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopiado(true)
+    } catch {
+      setErro('Não foi possível copiar. Selecione o link e copie manualmente.')
+    }
+  }
+
+  return (
+    <Modal titulo="Enviar cadastro" onClose={onClose}>
+      <Erro>{erro}</Erro>
+      <p className="mb-4 text-sm text-tinta/70">
+        O paciente preenche nome, data de nascimento, WhatsApp, endereço e plano de saúde. O link vale para <b>um</b> cadastro.
+      </p>
+      {link ? (
+        <>
+          <input readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Link de cadastro" className={cls(caixa, 'mb-3 text-sm')} />
+          <button onClick={copiar} className={cls(btn.base, btn.ouro, 'w-full')}>{copiado ? '✓ Link copiado' : 'Copiar link'}</button>
+          <div className="mt-6 border-t border-tinta/10 pt-5">
+            <Campo rotulo="WhatsApp do paciente (opcional)" value={tel} onChange={(e) => setTel(e.target.value)} type="tel" inputMode="tel" placeholder="(31) 99999-9999" />
+            {whats ? (
+              <a href={linkWhatsApp(whats, texto)} target="_blank" rel="noreferrer" className={cls(btn.base, btn.preto, 'w-full')}>Abrir WhatsApp com a mensagem</a>
+            ) : (
+              <p className="text-xs text-tinta/50">Informe o número para abrir o WhatsApp com a mensagem pronta.</p>
+            )}
+          </div>
+        </>
+      ) : (
+        !erro && <p className="py-4 text-sm text-tinta/60">Gerando link…</p>
+      )}
+    </Modal>
+  )
+}
+
 const quando = (d: Date) => d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const rotuloTipo = { aniversario: 'Aniversário', retorno: 'Retorno' }
 const chip = 'inline-block rounded-full bg-ouro-claro px-2 py-0.5 font-medium'
@@ -139,7 +195,9 @@ export function PerfilModal({
     <Modal titulo={paciente.nome} onClose={onClose} inline={inline}>
       <div className="mb-5 divide-y divide-tinta/10">
         {linha('Nascimento', `${d}/${m}/${a}`)}
+        {linha('Idade', `${idadeEm(paciente.nascimento, hojeSP())} anos`)}
         {linha('WhatsApp', formataTelefone(paciente.whatsapp))}
+        {linha('Endereço', paciente.endereco)}
         {linha('Responsável', paciente.responsavelNome && `${paciente.responsavelNome} · ${formataTelefone(paciente.responsavelWhatsapp ?? '')}`)}
         {linha('Mensagens vão para', dest.responsavel ? `Responsável (${dest.nome.split(' ')[0]})` : 'O paciente')}
         {linha('Convênio', paciente.convenio)}

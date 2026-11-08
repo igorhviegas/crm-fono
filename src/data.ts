@@ -103,9 +103,9 @@ export const confirmaEnvio = (pacienteId: string, msgId: string) =>
 // ---- pacientes ----
 
 type Dados = Omit<Paciente, 'id'>
-const OPCIONAIS = ['observacoes', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento', 'primeiroAtendimento', 'ultimoAtendimento'] as const
+const OPCIONAIS = ['observacoes', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento', 'primeiroAtendimento', 'ultimoAtendimento', 'endereco'] as const
 
-export async function salvaPaciente(id: string | null, d: Dados) {
+function montaDados(id: string | null, d: Dados): Record<string, unknown> {
   const dados: Record<string, unknown> = {
     nome: d.nome, whatsapp: d.whatsapp, nascimento: d.nascimento, arquivado: d.arquivado, destinatario: d.destinatario,
   }
@@ -116,8 +116,36 @@ export async function salvaPaciente(id: string | null, d: Dados) {
   }
   if (d.lembreteMeses) dados.lembreteMeses = d.lembreteMeses
   else if (id) dados.lembreteMeses = deleteField()
+  return dados
+}
+
+export async function salvaPaciente(id: string | null, d: Dados) {
+  const dados = montaDados(id, d)
   if (id) await updateDoc(doc(db, 'pacientes', id), dados)
   else await addDoc(collection(db, 'pacientes'), { ...dados, criadoEm: serverTimestamp() })
+}
+
+// ---- link de cadastro (convite de uso único, enviado ao paciente) ----
+
+/** Cria o convite. A lista de planos vai junto: o formulário público não lê a configuração da clínica. */
+export async function criaConvite(planos: string[]): Promise<string> {
+  const token = crypto.randomUUID().replaceAll('-', '')
+  await setDoc(doc(db, 'convites', token), { criadoEm: serverTimestamp(), usado: false, planos })
+  return token
+}
+
+/** Planos do convite; null se o link não existe ou já foi usado. */
+export async function buscaConvite(token: string): Promise<{ planos: string[] } | null> {
+  const d = await getDoc(doc(db, 'convites', token)).catch(() => null)
+  return d?.exists() && d.data().usado === false ? { planos: (d.data().planos as string[]) ?? [] } : null
+}
+
+/** Cadastro feito pelo paciente: cria o paciente e queima o convite no mesmo lote. */
+export async function enviaCadastro(token: string, d: Dados) {
+  const b = writeBatch(db)
+  b.set(doc(collection(db, 'pacientes')), { ...montaDados(null, d), criadoEm: serverTimestamp(), origemConvite: token })
+  b.update(doc(db, 'convites', token), { usado: true, usadoEm: serverTimestamp() })
+  await b.commit()
 }
 
 /**

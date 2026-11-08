@@ -90,4 +90,26 @@ describe('Firestore rules', () => {
     await assertSucceeds(setDoc(doc(db, 'config/clinica'), { nomeClinica: 'X', modeloAniversario: 'a', planos: ['IPSM'], servicos: ['Audiometria'] }))
     await assertFails(setDoc(doc(db, 'config/clinica'), { nomeClinica: 'X', planos: 'IPSM' }))
   })
+  it('link de cadastro: convite de uso único, paciente cria só com convite pendente', async () => {
+    const anon = env.unauthenticatedContext().firestore()
+    const admin = como('barbara@exemplo.com')
+    const token = 'a'.repeat(32)
+    await assertSucceeds(setDoc(doc(admin, 'convites', token), { criadoEm: serverTimestamp(), usado: false, planos: ['IPSM'] }))
+    await assertSucceeds(getDoc(doc(anon, 'convites', token))) // quem tem o link lê o convite
+    await assertFails(getDocs(collection(anon, 'convites'))) // ...mas não lista todos
+    const cadastro = { ...ok, endereco: 'Rua A, 10', origemConvite: token, criadoEm: serverTimestamp() }
+    await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...ok, endereco: 'Rua A' })) // sem convite
+    await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...cadastro, origemConvite: 'b'.repeat(32) })) // convite inexistente
+    await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...cadastro, arquivado: true })) // não pode já nascer arquivado
+    await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...cadastro, whatsapp: '' })) // precisa de WhatsApp
+    await assertSucceeds(setDoc(doc(anon, 'pacientes/s1'), cadastro))
+    // o convite só pode ser marcado como usado, nada mais
+    await assertFails(updateDoc(doc(anon, 'convites', token), { planos: ['Outro'] }))
+    await assertSucceeds(updateDoc(doc(anon, 'convites', token), { usado: true, usadoEm: serverTimestamp() }))
+    await assertFails(setDoc(doc(anon, 'pacientes/s2'), cadastro)) // já usado
+    await assertFails(getDoc(doc(anon, 'convites', token))) // depois de usado, o link não lê mais
+    await assertSucceeds(getDoc(doc(admin, 'convites', token)))
+    // a equipe continua podendo criar e editar pacientes com o endereço
+    await assertSucceeds(setDoc(doc(admin, 'pacientes/p9'), { ...ok, endereco: 'Rua B' }))
+  })
 })

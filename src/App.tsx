@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { entrarComGoogle, sair, salvaConfig, useConfig, useMensagens, usePacientes, useSessao } from './data'
 import { aniversariantes, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, type Filtro, type Paciente, type Tipo } from './domain'
-import { ConfigModal, ImportarModal, ListaModal, MensagemModal, PacienteModal, PerfilModal } from './modals'
+import { ConfigModal, ImportarModal, LinkCadastroModal, ListaModal, MensagemModal, PacienteModal, PerfilModal } from './modals'
 import { btn, cls } from './ui'
 
 const Marca = ({ alinha = 'text-center' }: { alinha?: string }) => (
@@ -73,7 +73,7 @@ export default function App() {
 }
 
 type Aberto =
-  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'config' } | { t: 'planos' } | { t: 'servicos' }
+  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'link' } | { t: 'config' } | { t: 'planos' } | { t: 'servicos' }
   | { t: 'perfil'; p: Paciente } | { t: 'msg'; p: Paciente; tipo: Tipo }
   | null
 
@@ -178,6 +178,7 @@ function Painel({ email }: { email: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <button className={cls(btn.base, btn.linha)} onClick={() => setAberto({ t: 'importar' })}>Importar Word</button>
+            <button className={cls(btn.base, btn.linha)} onClick={() => setAberto({ t: 'link' })}>Enviar cadastro</button>
             <button className={cls(btn.base, btn.preto)} onClick={() => setAberto({ t: 'novo' })}>+ Novo paciente</button>
           </div>
         </div>
@@ -368,6 +369,7 @@ function Painel({ email }: { email: string }) {
       </main>
 
       {aberto?.t === 'novo' && <PacienteModal paciente={null} planos={planos} servicos={config.servicos} onClose={fechar} />}
+      {aberto?.t === 'link' && <LinkCadastroModal planos={config.planos} clinica={config.nomeClinica} onClose={fechar} />}
       {aberto?.t === 'editar' && <PacienteModal paciente={aberto.p} planos={planos} servicos={config.servicos} onClose={fechar} />}
       {aberto?.t === 'planos' && (
         <ListaModal
