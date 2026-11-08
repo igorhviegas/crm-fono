@@ -1,20 +1,46 @@
 import { describe, expect, it } from 'vitest'
 import {
   aniversariantes, diasAteAniversario, linkWhatsApp, montaMensagem, normalizaNascimento,
-  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, resumoCadastro, cadastrosNovos, type Paciente,
+  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, resumoCadastro, cadastrosNovos, cadastrosPeloLink, normalizaCpf, formataCpf, semAcento, type Paciente,
 } from './domain'
+
+describe('cpf e busca', () => {
+  it('valida os dígitos verificadores e devolve só números', () => {
+    expect(normalizaCpf('529.982.247-25')).toBe('52998224725')
+    expect(normalizaCpf('52998224726')).toBeNull() // dígito errado
+    expect(normalizaCpf('111.111.111-11')).toBeNull() // repetidos
+    expect(normalizaCpf('123')).toBeNull()
+    expect(formataCpf('52998224725')).toBe('529.982.247-25')
+  })
+  it('busca sem diferenciar acentos nem maiúsculas', () => {
+    expect(semAcento('João da Conceição')).toBe('joao da conceicao')
+    expect(semAcento('Joao').includes(semAcento('JOÃO'))).toBe(true)
+  })
+  it('sem data de nascimento não entra nos aniversariantes nem quebra o resumo', () => {
+    const sem = { id: 's', nome: 'Sem Data', nascimento: '', arquivado: false, whatsapp: '', destinatario: 'paciente' } as Paciente
+    expect(aniversariantes([sem], 'mes', { a: 2026, m: 1, d: 1 })).toEqual([])
+    expect(aniversariantes([sem], 'semana', { a: 2026, m: 1, d: 1 })).toEqual([])
+    expect(resumoCadastro(sem, { a: 2026, m: 1, d: 1 })).toBe(
+      'Nome: Sem Data\nData de nascimento: Não informado\nIdade: Não informado\nCPF: Não informado\nWhatsApp: Não informado\nEndereço: Não informado\nPlano de saúde: Não informado',
+    )
+  })
+})
 
 describe('novo cadastro pelo link', () => {
   const feito = { id: 'a', nome: 'Ana Souza', nascimento: '2020-06-15', arquivado: false, whatsapp: '5531997115766', destinatario: 'paciente', endereco: 'Rua A, 10', convenio: 'IPSM', origemConvite: 'tok' } as Paciente
   it('resumo: uma informação por linha, com idade', () => {
     expect(resumoCadastro(feito, { a: 2026, m: 11, d: 8 })).toBe(
-      'Nome: Ana Souza\nData de nascimento: 15/06/2020\nIdade: 6 anos\nWhatsApp: (31) 99711-5766\nEndereço: Rua A, 10\nPlano de saúde: IPSM',
+      'Nome: Ana Souza\nData de nascimento: 15/06/2020\nIdade: 6 anos\nCPF: Não informado\nWhatsApp: (31) 99711-5766\nEndereço: Rua A, 10\nPlano de saúde: IPSM',
     )
     expect(resumoCadastro({ ...feito, convenio: undefined }, { a: 2026, m: 11, d: 8 })).toContain('Plano de saúde: Não informado')
   })
   it('sininho: só cadastros do link ainda não vistos', () => {
     const lista = [feito, { ...feito, id: 'b', cadastroVisto: true }, { ...feito, id: 'c', origemConvite: undefined }, { ...feito, id: 'd', arquivado: true }]
     expect(cadastrosNovos(lista).map((x) => x.id)).toEqual(['a'])
+  })
+  it('lista dos cadastros pelo link: do mais novo para o mais antigo', () => {
+    const em = (id: string, dia: number) => ({ ...feito, id, criadoEm: new Date(2026, 10, dia) })
+    expect(cadastrosPeloLink([em('velho', 1), em('novo', 8), em('meio', 5), { ...feito, id: 'equipe', origemConvite: undefined }]).map((x) => x.id)).toEqual(['novo', 'meio', 'velho'])
   })
 })
 

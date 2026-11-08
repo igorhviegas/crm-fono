@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { entrarComGoogle, marcaCadastroVisto, sair, salvaConfig, useConfig, useMensagens, usePacientes, useSessao } from './data'
-import { aniversariantes, cadastrosNovos, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, type Filtro, type Paciente, type Tipo } from './domain'
+import { aniversariantes, cadastrosNovos, cadastrosPeloLink, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, semAcento, type Filtro, type Paciente, type Tipo } from './domain'
 import { ConfigModal, ImportarModal, LinkCadastroModal, ListaModal, MensagemModal, PacienteModal, PerfilModal, ResumoCadastroModal } from './modals'
 import { btn, cls } from './ui'
 
@@ -84,7 +84,7 @@ function Painel({ email }: { email: string }) {
   const [filtro, setFiltro] = useState<Filtro>('semana')
   const [busca, setBusca] = useState('')
   const [convenio, setConvenio] = useState('')
-  const [arquivados, setArquivados] = useState(false)
+  const [aba, setAba] = useState<'ativos' | 'novos' | 'arquivados'>('ativos')
   const [menu, setMenu] = useState(false)
   const [sino, setSino] = useState(false)
   const [aberto, setAberto] = useState<Aberto>(null)
@@ -94,21 +94,22 @@ function Painel({ email }: { email: string }) {
   const lista = pacientes ?? []
   const novos = cadastrosNovos(lista)
   const aniv = useMemo(() => aniversariantes(lista, filtro, hoje), [lista, filtro, hoje.d, hoje.m]) // eslint-disable-line react-hooks/exhaustive-deps
-  const q = busca.trim().toLowerCase()
+  const q = semAcento(busca.trim()) // "joao" encontra "João"
   const qDigitos = q.replace(/\D/g, '')
   const convenios = [...new Set(lista.map((p) => p.convenio).filter(Boolean) as string[])].sort()
   const planos = [...new Set([...config.planos, ...convenios])] // inclui planos já usados mesmo que removidos da lista
-  const visiveis = lista.filter(
+  // "novos" = cadastros feitos pelo link, do mais recente ao mais antigo
+  const base = aba === 'novos' ? cadastrosPeloLink(lista) : lista.filter((p) => p.arquivado === (aba === 'arquivados'))
+  const visiveis = base.filter(
     (p) =>
-      p.arquivado === arquivados &&
       (!convenio || p.convenio === convenio) &&
-      (!q || p.nome.toLowerCase().includes(q) || (qDigitos && (p.whatsapp + (p.responsavelWhatsapp ?? '')).includes(qDigitos))),
+      (!q || semAcento(p.nome).includes(q) || (qDigitos && (p.whatsapp + (p.responsavelWhatsapp ?? '')).includes(qDigitos))),
   )
   // "Parabéns enviado" só vale com envio confirmado neste ano; link aberto não conta como enviado.
   const parabensEnviado = (p: Paciente) =>
     mensagens.get(p.id)?.some((m) => m.tipo === 'aniversario' && m.status === 'envio_confirmado' && m.criadoEm.getFullYear() === hoje.a)
   const dia = (n: string) => `${n.slice(8)}/${n.slice(5, 7)}`
-  const ehHoje = (p: Paciente) => diasAteAniversario(p.nascimento, hoje) === 0
+  const ehHoje = (p: Paciente) => !!p.nascimento && diasAteAniversario(p.nascimento, hoje) === 0
   const quando = (p: Paciente) => {
     const dias = diasAteAniversario(p.nascimento, hoje)
     if (dias === 0) return `Hoje · faz ${hoje.a - +p.nascimento.slice(0, 4)} anos`
@@ -346,9 +347,9 @@ function Painel({ email }: { email: string }) {
             />
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium">
               <div role="group" aria-label="Situação" className="flex rounded-full border border-tinta/15 p-0.5">
-                {[false, true].map((a) => (
-                  <button key={String(a)} aria-pressed={arquivados === a} onClick={() => setArquivados(a)} className={cls('min-h-10 rounded-full px-3.5', arquivados === a ? 'bg-tinta text-white' : 'text-tinta/70')}>
-                    {a ? 'Arquivados' : 'Ativos'}
+                {([['ativos', 'Ativos'], ['novos', 'Novos'], ['arquivados', 'Arquivados']] as const).map(([a, rotulo]) => (
+                  <button key={a} aria-pressed={aba === a} onClick={() => setAba(a)} className={cls('min-h-10 rounded-full px-3.5', aba === a ? 'bg-tinta text-white' : 'text-tinta/70')}>
+                    {rotulo}
                   </button>
                 ))}
               </div>
@@ -363,7 +364,7 @@ function Painel({ email }: { email: string }) {
               <p className="py-6 text-sm text-tinta/60">Carregando…</p>
             ) : visiveis.length === 0 ? (
               <div className="rounded-3xl border border-dashed border-tinta/20 px-4 py-8 text-center">
-                <p>{lista.length === 0 ? 'Nenhum paciente ainda.' : 'Nada encontrado.'}</p>
+                <p>{lista.length === 0 ? 'Nenhum paciente ainda.' : aba === 'novos' && base.length === 0 ? 'Nenhum cadastro feito pelo link ainda.' : 'Nada encontrado.'}</p>
                 <p className="mt-1 text-sm text-tinta/60">{lista.length === 0 ? 'Cadastre o primeiro ou importe fichas em Word.' : 'Confira a grafia ou limpe os filtros.'}</p>
                 {lista.length > 0 && <button className={cls(btn.base, btn.linha, 'mt-3')} onClick={() => { setBusca(''); setConvenio('') }}>Limpar filtros</button>}
               </div>
@@ -387,7 +388,13 @@ function Painel({ email }: { email: string }) {
                             {p.convenio && ` · ${p.convenio}`}
                           </span>
                         </span>
-                        <span className="shrink-0 text-sm text-tinta/60">{ehHoje(p) && 'Hoje · '}{dia(p.nascimento)}</span>
+                        {aba === 'novos' && p.criadoEm ? (
+                          <span className="shrink-0 text-right text-sm text-tinta/60">
+                            Cadastro em<br />{p.criadoEm.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', timeZone: 'America/Sao_Paulo' })}
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-sm text-tinta/60">{ehHoje(p) && 'Hoje · '}{p.nascimento && dia(p.nascimento)}</span>
+                        )}
                       </button>
                     </li>
                   )
