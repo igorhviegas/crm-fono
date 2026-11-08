@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import QRCode from 'qrcode'
 import { geraArte, salvaArte } from './art'
 import { extraiFicha, lerDocx, type Ficha } from './ficha'
 import {
@@ -129,6 +130,7 @@ export function LinkCadastroModal({ planos, clinica, onClose }: { planos: string
   const [erro, setErro] = useState('')
   const [tel, setTel] = useState('')
   const [copiado, setCopiado] = useState(false)
+  const [qr, setQr] = useState('')
   const criando = useRef(false) // o StrictMode roda o efeito duas vezes; so pode haver um convite por abertura
   useEffect(() => {
     if (criando.current) return
@@ -138,6 +140,10 @@ export function LinkCadastroModal({ planos, clinica, onClose }: { planos: string
       () => setErro(msgErro()),
     )
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // QR gerado no próprio navegador: o link não sai para nenhum serviço externo
+  useEffect(() => {
+    if (link) QRCode.toDataURL(link, { width: 240, margin: 1 }).then(setQr, () => setQr(''))
+  }, [link])
 
   const texto = `Olá! Aqui é da ${clinica}. Para agilizar seu atendimento, preencha seu cadastro pelo link: ${link}`
   const whats = tel.trim() ? normalizaTelefone(tel) : null
@@ -159,6 +165,7 @@ export function LinkCadastroModal({ planos, clinica, onClose }: { planos: string
       </p>
       {link ? (
         <>
+          {qr && <img src={qr} alt="QR Code do link de cadastro" className="mx-auto mb-4 size-60" />}
           <input readOnly value={link} onFocus={(e) => e.target.select()} aria-label="Link de cadastro" className={cls(caixa, 'mb-3 text-sm')} />
           <button onClick={copiar} className={cls(btn.base, btn.ouro, 'w-full')}>{copiado ? '✓ Link copiado' : 'Copiar link'}</button>
           <div className="mt-6 border-t border-tinta/10 pt-5">
