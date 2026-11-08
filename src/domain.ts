@@ -15,6 +15,8 @@ export type Paciente = {
   responsavelWhatsapp?: string
   convenio?: string
   atendimento?: string
+  endereco?: string
+  origemConvite?: string // token do link de cadastro que o paciente usou (vazio = cadastrado pela equipe)
   primeiroAtendimento?: string // AAAA-MM-DD ("DT" das fichas)
   ultimoAtendimento?: string // AAAA-MM-DD
   lembreteMeses?: number // 1–12: lembrar o retorno N meses após o último atendimento
@@ -97,6 +99,13 @@ export function diasAteAniversario(nasc: string, hoje: Dia): number {
   const h = Date.UTC(hoje.a, hoje.m - 1, hoje.d)
   const t = alvo(hoje.a) >= h ? alvo(hoje.a) : alvo(hoje.a + 1)
   return Math.round((t - h) / 86400000)
+}
+
+/** Idade em anos completos na data `hoje` (AAAA-MM-DD). */
+export function idadeEm(nasc: string, hoje: Dia): number {
+  const [a, m, d] = nasc.split('-').map(Number)
+  const ainda = hoje.m < m || (hoje.m === m && hoje.d < d)
+  return hoje.a - a - (ainda ? 1 : 0)
 }
 
 export type Filtro = 'hoje' | 'semana' | 'mes'

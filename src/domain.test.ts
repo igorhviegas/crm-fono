@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import {
   aniversariantes, diasAteAniversario, linkWhatsApp, montaMensagem, normalizaNascimento,
-  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, type Paciente,
+  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, type Paciente,
 } from './domain'
+
+describe('idade', () => {
+  it('conta anos completos (faz aniversário no dia = idade nova)', () => {
+    expect(idadeEm('2000-06-15', { a: 2026, m: 6, d: 14 })).toBe(25)
+    expect(idadeEm('2000-06-15', { a: 2026, m: 6, d: 15 })).toBe(26)
+    expect(idadeEm('2000-12-31', { a: 2026, m: 6, d: 1 })).toBe(25)
+  })
+})
 
 const p = (nome: string, nascimento: string, arquivado = false): Paciente => ({
   id: nome, nome, nascimento, arquivado, whatsapp: '5531997115766', destinatario: 'paciente',
