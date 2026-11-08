@@ -106,7 +106,7 @@ export const confirmaEnvio = (pacienteId: string, msgId: string) =>
 // ---- pacientes ----
 
 type Dados = Omit<Paciente, 'id'>
-const OPCIONAIS = ['observacoes', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento', 'primeiroAtendimento', 'ultimoAtendimento', 'endereco'] as const
+const OPCIONAIS = ['observacoes', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento', 'primeiroAtendimento', 'ultimoAtendimento', 'endereco', 'cpf'] as const
 
 function montaDados(id: string | null, d: Dados): Record<string, unknown> {
   const dados: Record<string, unknown> = {

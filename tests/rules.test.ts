@@ -101,14 +101,20 @@ describe('Firestore rules', () => {
     await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...ok, endereco: 'Rua A' })) // sem convite
     await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...cadastro, origemConvite: 'b'.repeat(32) })) // convite inexistente
     await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...cadastro, arquivado: true })) // não pode já nascer arquivado
-    await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...cadastro, whatsapp: '' })) // precisa de WhatsApp
-    await assertSucceeds(setDoc(doc(anon, 'pacientes/s1'), cadastro))
+    await assertFails(setDoc(doc(anon, 'pacientes/s1'), { ...cadastro, cpf: '123' })) // CPF só com 11 dígitos
+    await assertSucceeds(setDoc(doc(anon, 'pacientes/s1'), { ...cadastro, cpf: '52998224725' }))
     // o convite só pode ser marcado como usado, nada mais
     await assertFails(updateDoc(doc(anon, 'convites', token), { planos: ['Outro'] }))
     await assertSucceeds(updateDoc(doc(anon, 'convites', token), { usado: true, usadoEm: serverTimestamp() }))
     await assertFails(setDoc(doc(anon, 'pacientes/s2'), cadastro)) // já usado
     await assertFails(getDoc(doc(anon, 'convites', token))) // depois de usado, o link não lê mais
     await assertSucceeds(getDoc(doc(admin, 'convites', token)))
+    // só o nome é obrigatório: sem WhatsApp, nascimento, endereço nem CPF também vale
+    await setDoc(doc(admin, 'convites', 'd'.repeat(32)), { criadoEm: serverTimestamp(), usado: false, planos: [] })
+    await assertSucceeds(setDoc(doc(anon, 'pacientes/s4'), {
+      nome: 'So Nome', whatsapp: '', nascimento: '', arquivado: false, destinatario: 'paciente', origemConvite: 'd'.repeat(32), criadoEm: serverTimestamp(),
+    }))
+    await assertFails(setDoc(doc(anon, 'pacientes/s5'), { nome: '', whatsapp: '', nascimento: '', arquivado: false, destinatario: 'paciente', origemConvite: 'c'.repeat(32), criadoEm: serverTimestamp() }))
     // quem se cadastra não marca o próprio aviso como visto; a equipe marca
     await setDoc(doc(admin, 'convites', 'c'.repeat(32)), { criadoEm: serverTimestamp(), usado: false, planos: [] })
     await assertFails(setDoc(doc(anon, 'pacientes/s3'), { ...cadastro, origemConvite: 'c'.repeat(32), cadastroVisto: true }))

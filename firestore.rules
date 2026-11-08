@@ -26,7 +26,7 @@ service cloud.firestore {
     function pacienteValido(d) {
       return d.keys().hasOnly(['nome', 'whatsapp', 'nascimento', 'observacoes', 'arquivado', 'criadoEm',
                                'destinatario', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento',
-                               'primeiroAtendimento', 'ultimoAtendimento', 'lembreteMeses', 'endereco', 'origemConvite', 'cadastroVisto'])
+                               'primeiroAtendimento', 'ultimoAtendimento', 'lembreteMeses', 'endereco', 'origemConvite', 'cadastroVisto', 'cpf'])
         && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 120
         && d.destinatario in ['paciente', 'responsavel']
         // WhatsApp pode ficar vazio (paciente importado de ficha); a tela avisa e bloqueia o envio
@@ -35,7 +35,9 @@ service cloud.firestore {
         && (!('lembreteMeses' in d) || (d.lembreteMeses is int && d.lembreteMeses >= 1 && d.lembreteMeses <= 12))
         && dataOpcional(d, 'primeiroAtendimento')
         && dataOpcional(d, 'ultimoAtendimento')
-        && d.nascimento is string && d.nascimento.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        // nascimento pode ficar vazio (cadastro pelo link: so o nome e obrigatorio); a tela esconde aniversario/idade
+        && d.nascimento is string && (d.nascimento == '' || d.nascimento.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'))
+        && (!('cpf' in d) || (d.cpf is string && d.cpf.matches('^[0-9]{11}$')))
         && textoOpcional(d, 'observacoes', 500)
         && textoOpcional(d, 'responsavelNome', 120)
         && textoOpcional(d, 'convenio', 60)
@@ -68,15 +70,14 @@ service cloud.firestore {
     match /pacientes/{id} {
       allow read: if autorizada();
       allow update: if autorizada() && pacienteValido(request.resource.data);
-      // Cadastro pelo link: so paciente com convite pendente, sem arquivar e com WhatsApp.
+      // Cadastro pelo link: so paciente com convite pendente e sem arquivar.
       allow create: if (autorizada() && pacienteValido(request.resource.data))
         || (request.resource.data.origemConvite is string
             && convitePendente(request.resource.data.origemConvite)
             && pacienteValido(request.resource.data)
             && request.resource.data.arquivado == false
             && !('cadastroVisto' in request.resource.data) // quem se cadastra nao marca o proprio aviso como visto
-            && request.resource.data.destinatario == 'paciente'
-            && request.resource.data.whatsapp.size() > 0);
+            && request.resource.data.destinatario == 'paciente');
       allow delete: if false; // so arquivar; exclusao definitiva pelo console
 
       // Consultas: data + servico prestado. Pode apagar (lancamento errado).

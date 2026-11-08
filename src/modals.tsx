@@ -8,7 +8,7 @@ import {
 } from './data'
 import {
   chaveModelo, dataBR, destinatarioDe, formataTelefone, hojeSP, idadeEm, vencimentoRetorno, linkWhatsApp, montaMensagem,
-  normalizaNascimento, normalizaTelefone, resumoCadastro, variaveisInvalidas, type Destinatario, type Paciente, type Tipo,
+  formataCpf, normalizaCpf, normalizaNascimento, normalizaTelefone, resumoCadastro, variaveisInvalidas, type Destinatario, type Paciente, type Tipo,
 } from './domain'
 import { btn, Campo, cls, Erro, Modal } from './ui'
 
@@ -28,6 +28,7 @@ export function PacienteModal({
   const [convenio, setConvenio] = useState(paciente?.convenio ?? '')
   const [atend, setAtend] = useState(paciente?.atendimento ?? '')
   const [endereco, setEndereco] = useState(paciente?.endereco ?? '')
+  const [cpf, setCpf] = useState(paciente?.cpf ? formataCpf(paciente.cpf) : '')
   const [obs, setObs] = useState(paciente?.observacoes ?? '')
   const [primeiro, setPrimeiro] = useState(paciente?.primeiroAtendimento ?? '')
   const [ultimo, setUltimo] = useState(paciente?.ultimoAtendimento ?? '')
@@ -36,18 +37,20 @@ export function PacienteModal({
   const [salvando, setSalvando] = useState(false)
 
   async function salvar(arquivado = paciente?.arquivado ?? false) {
-    const nascimento = normalizaNascimento(nasc)
+    const nascimento = nasc.trim() ? normalizaNascimento(nasc) : '' // data de nascimento é opcional
+    const documento = cpf.trim() ? normalizaCpf(cpf) : ''
     const whatsapp = tel.trim() ? normalizaTelefone(tel) : ''
     const responsavelWhatsapp = respTel.trim() ? normalizaTelefone(respTel) : ''
     if (!nome.trim()) return setErro('Informe o nome do paciente.')
     if (whatsapp === null) return setErro('WhatsApp do paciente inválido. Use DDD + número, ex.: (31) 99999-9999.')
     if (responsavelWhatsapp === null) return setErro('WhatsApp do responsável inválido. Use DDD + número.')
-    if (!nascimento) return setErro('Data de nascimento inválida.')
+    if (nascimento === null) return setErro('Data de nascimento inválida.')
+    if (documento === null) return setErro('CPF inválido. Confira os números ou deixe em branco.')
     setSalvando(true)
     try {
       await salvaPaciente(paciente?.id ?? null, {
         nome: nome.trim(), whatsapp: whatsapp!, nascimento, arquivado, destinatario: dest,
-        responsavelNome: respNome, responsavelWhatsapp: responsavelWhatsapp!, convenio, atendimento: atend, observacoes: obs, endereco,
+        responsavelNome: respNome, responsavelWhatsapp: responsavelWhatsapp!, convenio, atendimento: atend, observacoes: obs, endereco, cpf: documento,
         primeiroAtendimento: primeiro, ultimoAtendimento: ultimo, lembreteMeses: lembrete || undefined,
       })
       onClose()
@@ -62,7 +65,8 @@ export function PacienteModal({
       <Erro>{erro}</Erro>
       <Campo rotulo="Nome completo" value={nome} onChange={(e) => setNome(e.target.value)} autoComplete="off" autoFocus />
       <Campo rotulo="WhatsApp do paciente" value={tel} onChange={(e) => setTel(e.target.value)} type="tel" inputMode="tel" placeholder="(31) 99999-9999" />
-      <Campo rotulo="Data de nascimento" type="date" value={normalizaNascimento(nasc) ?? nasc} onChange={(e) => setNasc(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+      <Campo rotulo="Data de nascimento (opcional)" type="date" value={normalizaNascimento(nasc) ?? nasc} onChange={(e) => setNasc(e.target.value)} max={new Date().toISOString().slice(0, 10)} />
+      <Campo rotulo="CPF (opcional)" value={cpf} onChange={(e) => setCpf(e.target.value)} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" />
       <Campo rotulo="Endereço (opcional)" value={endereco} onChange={(e) => setEndereco(e.target.value)} autoComplete="street-address" />
 
       <fieldset className="mb-4 rounded-xl border border-tinta/15 p-4">
@@ -182,7 +186,7 @@ export function LinkCadastroModal({ planos, clinica, onClose }: { planos: string
     <Modal titulo="Enviar cadastro" onClose={onClose}>
       <Erro>{erro}</Erro>
       <p className="mb-4 text-sm text-tinta/70">
-        O paciente preenche nome, data de nascimento, WhatsApp, endereço e plano de saúde. O link vale para <b>um</b> cadastro.
+        O paciente preenche nome (obrigatório), data de nascimento, CPF, WhatsApp, endereço e plano de saúde. O link vale para <b>um</b> cadastro.
       </p>
       {link ? (
         <>
@@ -216,14 +220,15 @@ export function PerfilModal({
   const [novaConsulta, setNovaConsulta] = useState(false)
   const consultas = useConsultas(paciente.id)
   const vence = vencimentoRetorno(paciente)
-  const [a, m, d] = [paciente.nascimento.slice(0, 4), paciente.nascimento.slice(5, 7), paciente.nascimento.slice(8)]
+  const nasc = paciente.nascimento // '' = não informado
   const linha = (r: string, v?: string) => v && <p className="flex justify-between gap-4 py-2.5 text-sm"><span className="text-tinta/60">{r}</span><span className="text-right">{v}</span></p>
 
   return (
     <Modal titulo={paciente.nome} onClose={onClose} inline={inline}>
       <div className="mb-5 divide-y divide-tinta/10">
-        {linha('Nascimento', `${d}/${m}/${a}`)}
-        {linha('Idade', `${idadeEm(paciente.nascimento, hojeSP())} anos`)}
+        {linha('Nascimento', nasc && dataBR(nasc))}
+        {linha('Idade', nasc && `${idadeEm(nasc, hojeSP())} anos`)}
+        {linha('CPF', paciente.cpf && formataCpf(paciente.cpf))}
         {linha('WhatsApp', formataTelefone(paciente.whatsapp))}
         {linha('Endereço', paciente.endereco)}
         {linha('Responsável', paciente.responsavelNome && `${paciente.responsavelNome} · ${formataTelefone(paciente.responsavelWhatsapp ?? '')}`)}

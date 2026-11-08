@@ -7,7 +7,8 @@ export type Paciente = {
   id: string
   nome: string
   whatsapp: string // 55DDDNUMERO; '' = ainda sem WhatsApp (ex.: veio de uma ficha em Word)
-  nascimento: string // AAAA-MM-DD
+  nascimento: string // AAAA-MM-DD; '' = não informado
+  cpf?: string // só os 11 dígitos
   observacoes?: string
   arquivado: boolean
   destinatario: Destinatario // quem recebe as mensagens
@@ -114,7 +115,7 @@ export type Filtro = 'hoje' | 'semana' | 'mes'
 
 /** Aniversariantes do período, em ordem de data. "mes" = mês corrente inteiro (incluindo dias já passados). */
 export function aniversariantes(ps: Paciente[], filtro: Filtro, hoje: Dia): Paciente[] {
-  const ativos = ps.filter((p) => !p.arquivado)
+  const ativos = ps.filter((p) => !p.arquivado && p.nascimento) // sem data de nascimento não há aniversário
   const alvo =
     filtro === 'mes'
       ? ativos
@@ -172,13 +173,31 @@ export const cadastrosNovos = (ps: Paciente[]) => cadastrosPeloLink(ps).filter((
 
 /** Texto do cadastro, uma informação por linha, para colar no Word. */
 export function resumoCadastro(p: Paciente, hoje: Dia): string {
-  const idade = idadeEm(p.nascimento, hoje)
+  const idade = p.nascimento ? idadeEm(p.nascimento, hoje) : null
   return [
     `Nome: ${p.nome}`,
-    `Data de nascimento: ${dataBR(p.nascimento)}`,
-    `Idade: ${idade} ${idade === 1 ? 'ano' : 'anos'}`,
+    `Data de nascimento: ${p.nascimento ? dataBR(p.nascimento) : 'Não informado'}`,
+    `Idade: ${idade === null ? 'Não informado' : `${idade} ${idade === 1 ? 'ano' : 'anos'}`}`,
+    `CPF: ${p.cpf ? formataCpf(p.cpf) : 'Não informado'}`,
     `WhatsApp: ${p.whatsapp ? formataTelefone(p.whatsapp) : 'Não informado'}`,
     `Endereço: ${p.endereco || 'Não informado'}`,
     `Plano de saúde: ${p.convenio || 'Não informado'}`,
   ].join('\n')
 }
+
+/** CPF com 11 dígitos e dígitos verificadores corretos → só os dígitos; null se inválido. */
+export function normalizaCpf(entrada: string): string | null {
+  const d = entrada.replace(/\D/g, '')
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return null
+  const dv = (n: number) => {
+    let soma = 0
+    for (let i = 0; i < n; i++) soma += +d[i] * (n + 1 - i)
+    return (soma * 10) % 11 % 10
+  }
+  return dv(9) === +d[9] && dv(10) === +d[10] ? d : null
+}
+
+export const formataCpf = (c: string) => c.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4')
+
+/** Minúsculas e sem acentos: "João" e "joao" se encontram na busca. */
+export const semAcento = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
