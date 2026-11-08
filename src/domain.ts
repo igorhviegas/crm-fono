@@ -17,6 +17,7 @@ export type Paciente = {
   atendimento?: string
   endereco?: string
   origemConvite?: string // token do link de cadastro que o paciente usou (vazio = cadastrado pela equipe)
+  cadastroVisto?: boolean // false/ausente num cadastro feito pelo link = ainda aparece no sininho
   primeiroAtendimento?: string // AAAA-MM-DD ("DT" das fichas)
   ultimoAtendimento?: string // AAAA-MM-DD
   lembreteMeses?: number // 1–12: lembrar o retorno N meses após o último atendimento
@@ -159,4 +160,20 @@ export function retornosDoMes(ps: Paciente[], hoje: Dia): { p: Paciente; vence: 
   return ps
     .flatMap((p) => { const vence = p.arquivado ? null : vencimentoRetorno(p); return vence?.startsWith(mes) ? [{ p, vence }] : [] })
     .sort((x, y) => x.vence.localeCompare(y.vence))
+}
+
+/** Cadastros feitos pelo link que a equipe ainda não abriu (o sininho do painel). */
+export const cadastrosNovos = (ps: Paciente[]) => ps.filter((p) => p.origemConvite && !p.cadastroVisto && !p.arquivado)
+
+/** Texto do cadastro, uma informação por linha, para colar no Word. */
+export function resumoCadastro(p: Paciente, hoje: Dia): string {
+  const idade = idadeEm(p.nascimento, hoje)
+  return [
+    `Nome: ${p.nome}`,
+    `Data de nascimento: ${dataBR(p.nascimento)}`,
+    `Idade: ${idade} ${idade === 1 ? 'ano' : 'anos'}`,
+    `WhatsApp: ${p.whatsapp ? formataTelefone(p.whatsapp) : 'Não informado'}`,
+    `Endereço: ${p.endereco || 'Não informado'}`,
+    `Plano de saúde: ${p.convenio || 'Não informado'}`,
+  ].join('\n')
 }

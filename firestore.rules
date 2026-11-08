@@ -26,7 +26,7 @@ service cloud.firestore {
     function pacienteValido(d) {
       return d.keys().hasOnly(['nome', 'whatsapp', 'nascimento', 'observacoes', 'arquivado', 'criadoEm',
                                'destinatario', 'responsavelNome', 'responsavelWhatsapp', 'convenio', 'atendimento',
-                               'primeiroAtendimento', 'ultimoAtendimento', 'lembreteMeses', 'endereco', 'origemConvite'])
+                               'primeiroAtendimento', 'ultimoAtendimento', 'lembreteMeses', 'endereco', 'origemConvite', 'cadastroVisto'])
         && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 120
         && d.destinatario in ['paciente', 'responsavel']
         // WhatsApp pode ficar vazio (paciente importado de ficha); a tela avisa e bloqueia o envio
@@ -42,6 +42,7 @@ service cloud.firestore {
         && textoOpcional(d, 'atendimento', 60)
         && textoOpcional(d, 'endereco', 300)
         && (!('origemConvite' in d) || d.origemConvite is string)
+        && (!('cadastroVisto' in d) || d.cadastroVisto is bool)
         && d.arquivado is bool;
     }
 
@@ -73,6 +74,7 @@ service cloud.firestore {
             && convitePendente(request.resource.data.origemConvite)
             && pacienteValido(request.resource.data)
             && request.resource.data.arquivado == false
+            && !('cadastroVisto' in request.resource.data) // quem se cadastra nao marca o proprio aviso como visto
             && request.resource.data.destinatario == 'paciente'
             && request.resource.data.whatsapp.size() > 0);
       allow delete: if false; // so arquivar; exclusao definitiva pelo console

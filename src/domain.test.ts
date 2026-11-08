@@ -1,8 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import {
   aniversariantes, diasAteAniversario, linkWhatsApp, montaMensagem, normalizaNascimento,
-  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, type Paciente,
+  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, resumoCadastro, cadastrosNovos, type Paciente,
 } from './domain'
+
+describe('novo cadastro pelo link', () => {
+  const feito = { id: 'a', nome: 'Ana Souza', nascimento: '2020-06-15', arquivado: false, whatsapp: '5531997115766', destinatario: 'paciente', endereco: 'Rua A, 10', convenio: 'IPSM', origemConvite: 'tok' } as Paciente
+  it('resumo: uma informação por linha, com idade', () => {
+    expect(resumoCadastro(feito, { a: 2026, m: 11, d: 8 })).toBe(
+      'Nome: Ana Souza\nData de nascimento: 15/06/2020\nIdade: 6 anos\nWhatsApp: (31) 99711-5766\nEndereço: Rua A, 10\nPlano de saúde: IPSM',
+    )
+    expect(resumoCadastro({ ...feito, convenio: undefined }, { a: 2026, m: 11, d: 8 })).toContain('Plano de saúde: Não informado')
+  })
+  it('sininho: só cadastros do link ainda não vistos', () => {
+    const lista = [feito, { ...feito, id: 'b', cadastroVisto: true }, { ...feito, id: 'c', origemConvite: undefined }, { ...feito, id: 'd', arquivado: true }]
+    expect(cadastrosNovos(lista).map((x) => x.id)).toEqual(['a'])
+  })
+})
 
 describe('idade', () => {
   it('conta anos completos (faz aniversário no dia = idade nova)', () => {

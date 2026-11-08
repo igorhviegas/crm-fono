@@ -109,6 +109,11 @@ describe('Firestore rules', () => {
     await assertFails(setDoc(doc(anon, 'pacientes/s2'), cadastro)) // já usado
     await assertFails(getDoc(doc(anon, 'convites', token))) // depois de usado, o link não lê mais
     await assertSucceeds(getDoc(doc(admin, 'convites', token)))
+    // quem se cadastra não marca o próprio aviso como visto; a equipe marca
+    await setDoc(doc(admin, 'convites', 'c'.repeat(32)), { criadoEm: serverTimestamp(), usado: false, planos: [] })
+    await assertFails(setDoc(doc(anon, 'pacientes/s3'), { ...cadastro, origemConvite: 'c'.repeat(32), cadastroVisto: true }))
+    await assertSucceeds(updateDoc(doc(admin, 'pacientes/s1'), { cadastroVisto: true }))
+    await assertFails(updateDoc(doc(anon, 'pacientes/s1'), { cadastroVisto: true }))
     // a equipe continua podendo criar e editar pacientes com o endereço
     await assertSucceeds(setDoc(doc(admin, 'pacientes/p9'), { ...ok, endereco: 'Rua B' }))
   })
