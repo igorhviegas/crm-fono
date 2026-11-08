@@ -8,7 +8,7 @@ import {
 } from './data'
 import {
   chaveModelo, dataBR, destinatarioDe, formataTelefone, hojeSP, idadeEm, vencimentoRetorno, linkWhatsApp, montaMensagem,
-  normalizaNascimento, normalizaTelefone, variaveisInvalidas, type Destinatario, type Paciente, type Tipo,
+  normalizaNascimento, normalizaTelefone, resumoCadastro, variaveisInvalidas, type Destinatario, type Paciente, type Tipo,
 } from './domain'
 import { btn, Campo, cls, Erro, Modal } from './ui'
 
@@ -120,6 +120,27 @@ export function PacienteModal({
           {paciente.arquivado ? 'Reativar paciente' : 'Arquivar paciente'}
         </button>
       )}
+    </Modal>
+  )
+}
+
+/** Cadastro feito pelo paciente, em texto com uma informação por linha para a Bárbara colar no Word. */
+export function ResumoCadastroModal({ paciente, onClose }: { paciente: Paciente; onClose: () => void }) {
+  const texto = resumoCadastro(paciente, hojeSP())
+  const [copiado, setCopiado] = useState(false)
+  async function copiar() {
+    try {
+      await navigator.clipboard.writeText(texto)
+      setCopiado(true)
+    } catch {
+      /* sem permissão para copiar: o texto já fica selecionado ao tocar na caixa */
+    }
+  }
+  return (
+    <Modal titulo="Novo cadastro" onClose={onClose}>
+      <p className="mb-3 text-sm text-tinta/70">Copie o texto e cole no Word. Cada informação fica em uma linha.</p>
+      <textarea readOnly value={texto} rows={7} onFocus={(e) => e.target.select()} aria-label="Resumo do cadastro" className={cls(caixa, 'py-3 leading-relaxed')} />
+      <button onClick={copiar} className={cls(btn.base, btn.ouro, 'mt-3 w-full')}>{copiado ? '✓ Texto copiado' : 'Copiar texto'}</button>
     </Modal>
   )
 }

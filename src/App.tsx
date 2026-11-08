@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { entrarComGoogle, sair, salvaConfig, useConfig, useMensagens, usePacientes, useSessao } from './data'
-import { aniversariantes, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, type Filtro, type Paciente, type Tipo } from './domain'
-import { ConfigModal, ImportarModal, LinkCadastroModal, ListaModal, MensagemModal, PacienteModal, PerfilModal } from './modals'
+import { entrarComGoogle, marcaCadastroVisto, sair, salvaConfig, useConfig, useMensagens, usePacientes, useSessao } from './data'
+import { aniversariantes, cadastrosNovos, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, type Filtro, type Paciente, type Tipo } from './domain'
+import { ConfigModal, ImportarModal, LinkCadastroModal, ListaModal, MensagemModal, PacienteModal, PerfilModal, ResumoCadastroModal } from './modals'
 import { btn, cls } from './ui'
 
 const Marca = ({ alinha = 'text-center' }: { alinha?: string }) => (
@@ -73,7 +73,7 @@ export default function App() {
 }
 
 type Aberto =
-  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'link' } | { t: 'config' } | { t: 'planos' } | { t: 'servicos' }
+  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'link' } | { t: 'resumo'; p: Paciente } | { t: 'config' } | { t: 'planos' } | { t: 'servicos' }
   | { t: 'perfil'; p: Paciente } | { t: 'msg'; p: Paciente; tipo: Tipo }
   | null
 
@@ -86,11 +86,13 @@ function Painel({ email }: { email: string }) {
   const [convenio, setConvenio] = useState('')
   const [arquivados, setArquivados] = useState(false)
   const [menu, setMenu] = useState(false)
+  const [sino, setSino] = useState(false)
   const [aberto, setAberto] = useState<Aberto>(null)
   const desktop = useDesktop()
   const hoje = hojeSP()
 
   const lista = pacientes ?? []
+  const novos = cadastrosNovos(lista)
   const aniv = useMemo(() => aniversariantes(lista, filtro, hoje), [lista, filtro, hoje.d, hoje.m]) // eslint-disable-line react-hooks/exhaustive-deps
   const q = busca.trim().toLowerCase()
   const qDigitos = q.replace(/\D/g, '')
@@ -143,6 +145,46 @@ function Painel({ email }: { email: string }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2 text-sm">
+            <div className="relative">
+              <button
+                aria-label={novos.length ? `${novos.length} novo${novos.length === 1 ? '' : 's'} cadastro${novos.length === 1 ? '' : 's'}` : 'Novos cadastros'}
+                aria-expanded={sino}
+                className="relative flex size-11 items-center justify-center rounded-full hover:bg-ouro-claro"
+                onClick={() => setSino(!sino)}
+              >
+                <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" />
+                </svg>
+                {novos.length > 0 && (
+                  <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-ouro px-1 text-xs font-semibold">{novos.length}</span>
+                )}
+              </button>
+              {sino && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setSino(false)} />
+                  <div className="absolute right-0 z-40 mt-1 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-ouro/40 bg-white shadow-lg">
+                    <p className="border-b border-tinta/10 px-4 py-3 font-serif text-lg font-semibold">Novos cadastros</p>
+                    {novos.length === 0 ? (
+                      <p className="px-4 py-4 text-sm text-tinta/60">Nenhum cadastro novo.</p>
+                    ) : (
+                      <ul className="max-h-80 overflow-y-auto">
+                        {novos.map((p) => (
+                          <li key={p.id}>
+                            <button
+                              className="block min-h-12 w-full px-4 py-2 text-left hover:bg-ouro-claro"
+                              onClick={() => { setSino(false); setAberto({ t: 'resumo', p }); marcaCadastroVisto(p.id).catch(() => {}) }}
+                            >
+                              <span className="block truncate font-medium">{p.nome}</span>
+                              <span className="block text-xs text-tinta/60">Preencheu o cadastro · toque para ver o texto</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
             <span className="hidden text-tinta/60 lg:inline">{email}</span>
             <button className={cls(btn.base, btn.linha, 'min-h-10 px-4')} title={email} onClick={sair}>Sair</button>
             <div className="relative md:hidden">
@@ -369,7 +411,8 @@ function Painel({ email }: { email: string }) {
       </main>
 
       {aberto?.t === 'novo' && <PacienteModal paciente={null} planos={planos} servicos={config.servicos} onClose={fechar} />}
-      {aberto?.t === 'link' && <LinkCadastroModal planos={config.planos} clinica={config.nomeClinica} onClose={fechar} />}
+      {aberto?.t === 'resumo' && <ResumoCadastroModal paciente={aberto.p} onClose={fechar} />}
+      {aberto?.t === 'link' &&<LinkCadastroModal planos={config.planos} clinica={config.nomeClinica} onClose={fechar} />}
       {aberto?.t === 'editar' && <PacienteModal paciente={aberto.p} planos={planos} servicos={config.servicos} onClose={fechar} />}
       {aberto?.t === 'planos' && (
         <ListaModal

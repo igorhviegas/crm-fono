@@ -233,3 +233,6 @@ export async function salvaConsulta(p: Paciente, data: string, servico: string) 
   if (Object.keys(novo).length) b.update(doc(db, 'pacientes', p.id), novo)
   await b.commit()
 }
+
+/** A equipe abriu o cadastro feito pelo link: sai do sininho. */
+export const marcaCadastroVisto = (id: string) => updateDoc(doc(db, 'pacientes', id), { cadastroVisto: true })
