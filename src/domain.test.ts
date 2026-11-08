@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   aniversariantes, diasAteAniversario, linkWhatsApp, montaMensagem, normalizaNascimento,
-  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, resumoCadastro, cadastrosNovos, type Paciente,
+  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, resumoCadastro, cadastrosNovos, cadastrosPeloLink, type Paciente,
 } from './domain'
 
 describe('novo cadastro pelo link', () => {
@@ -15,6 +15,10 @@ describe('novo cadastro pelo link', () => {
   it('sininho: só cadastros do link ainda não vistos', () => {
     const lista = [feito, { ...feito, id: 'b', cadastroVisto: true }, { ...feito, id: 'c', origemConvite: undefined }, { ...feito, id: 'd', arquivado: true }]
     expect(cadastrosNovos(lista).map((x) => x.id)).toEqual(['a'])
+  })
+  it('lista dos cadastros pelo link: do mais novo para o mais antigo', () => {
+    const em = (id: string, dia: number) => ({ ...feito, id, criadoEm: new Date(2026, 10, dia) })
+    expect(cadastrosPeloLink([em('velho', 1), em('novo', 8), em('meio', 5), { ...feito, id: 'equipe', origemConvite: undefined }]).map((x) => x.id)).toEqual(['novo', 'meio', 'velho'])
   })
 })
 

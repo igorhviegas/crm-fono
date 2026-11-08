@@ -17,6 +17,7 @@ export type Paciente = {
   atendimento?: string
   endereco?: string
   origemConvite?: string // token do link de cadastro que o paciente usou (vazio = cadastrado pela equipe)
+  criadoEm?: Date // quando o cadastro foi criado
   cadastroVisto?: boolean // false/ausente num cadastro feito pelo link = ainda aparece no sininho
   primeiroAtendimento?: string // AAAA-MM-DD ("DT" das fichas)
   ultimoAtendimento?: string // AAAA-MM-DD
@@ -162,8 +163,12 @@ export function retornosDoMes(ps: Paciente[], hoje: Dia): { p: Paciente; vence: 
     .sort((x, y) => x.vence.localeCompare(y.vence))
 }
 
+/** Cadastros feitos pelo link (pacientes ativos), do mais novo para o mais antigo. */
+export const cadastrosPeloLink = (ps: Paciente[]) =>
+  ps.filter((p) => p.origemConvite && !p.arquivado).sort((a, b) => (b.criadoEm?.getTime() ?? 0) - (a.criadoEm?.getTime() ?? 0))
+
 /** Cadastros feitos pelo link que a equipe ainda não abriu (o sininho do painel). */
-export const cadastrosNovos = (ps: Paciente[]) => ps.filter((p) => p.origemConvite && !p.cadastroVisto && !p.arquivado)
+export const cadastrosNovos = (ps: Paciente[]) => cadastrosPeloLink(ps).filter((p) => !p.cadastroVisto)
 
 /** Texto do cadastro, uma informação por linha, para colar no Word. */
 export function resumoCadastro(p: Paciente, hoje: Dia): string {

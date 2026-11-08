@@ -35,7 +35,10 @@ export function usePacientes(ativo: boolean): Paciente[] | null {
     return onSnapshot(collection(db, 'pacientes'), (q) =>
       setPs(
         q.docs
-          .map((d) => ({ arquivado: false, destinatario: 'paciente', ...d.data(), id: d.id }) as Paciente)
+          .map((d) => {
+            const x = d.data({ serverTimestamps: 'estimate' }) // recém-criado ainda sem horário do servidor = agora
+            return { arquivado: false, destinatario: 'paciente', ...x, criadoEm: x.criadoEm?.toDate(), id: d.id } as Paciente
+          })
           .sort((a, b) => a.nome.localeCompare(b.nome)),
       ),
     )
