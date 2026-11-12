@@ -158,10 +158,12 @@ export function LembreteModal({ ag, config, onClose }: { ag: Agendamento; config
 }
 
 /** A aba Agenda: um dia por vez, com navegação por dia e atalho para a data. */
-export function Agenda({ ags, duracoes, dia, onDia, onAgendar, onEditar, onLembrar }: {
+export function Agenda({ ags, duracoes, dia, onDia, onAgendar, onEditar, onLembrar, onAjustes }: {
   ags: Agendamento[]; duracoes: Record<string, number>; dia: string; onDia: (d: string) => void
-  onAgendar: () => void; onEditar: (a: Agendamento) => void; onLembrar: (a: Agendamento) => void
+  onAgendar: () => void; onEditar: (a: Agendamento) => void; onLembrar: (a: Agendamento) => void; onAjustes: () => void
 }) {
+  const [modo, setModo] = useState<'dia' | 'mes'>('dia')
+  const [mes, setMes] = useState(dia.slice(0, 7))
   const hoje = hojeSP()
   const hojeIso = isoDe(hoje)
   const doDia = ags.filter((a) => a.data === dia).sort(porHorario)
@@ -170,15 +172,31 @@ export function Agenda({ ags, duracoes, dia, onDia, onAgendar, onEditar, onLembr
   const passo = 'flex size-11 items-center justify-center rounded-full border border-tinta/20 text-xl hover:border-ouro'
 
   return (
-    <section aria-labelledby="t-agenda" className="flex max-w-3xl flex-col gap-5">
+    <section aria-labelledby="t-agenda" className={cls('flex flex-col gap-5', modo === 'mes' ? 'max-w-5xl' : 'max-w-3xl')}>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 id="t-agenda" className="font-serif text-3xl font-semibold sm:text-[40px] sm:leading-[48px]">Agenda</h1>
-          <p className="mt-1 capitalize text-tinta/70">{dataPorExtenso(dia, hoje)} · {doDia.length} consulta{doDia.length === 1 ? '' : 's'}</p>
+          <p className="mt-1 capitalize text-tinta/70">{modo === 'dia' ? `${dataPorExtenso(dia, hoje)} · ${doDia.length} consulta${doDia.length === 1 ? '' : 's'}` : 'Visão do mês'}</p>
         </div>
-        <button className={cls(btn.base, btn.preto)} onClick={onAgendar}>+ Nova consulta</button>
+        <div className="flex items-center gap-2">
+          <button aria-label="Ajustes da agenda" title="Ajustes da agenda" className="flex size-11 items-center justify-center rounded-full hover:bg-ouro-claro" onClick={onAjustes}>
+            <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+            </svg>
+          </button>
+          <button className={cls(btn.base, btn.preto)} onClick={onAgendar}>+ Nova consulta</button>
+        </div>
       </div>
 
+      <div role="group" aria-label="Visão" className="flex self-start rounded-full border border-tinta/15 p-0.5 text-sm font-medium">
+        {([['dia', 'Dia'], ['mes', 'Mês']] as const).map(([v, rotulo]) => (
+          <button key={v} aria-pressed={modo === v} onClick={() => { setModo(v); if (v === 'mes') setMes(dia.slice(0, 7)) }} className={cls('min-h-10 rounded-full px-5', modo === v ? 'bg-tinta text-white' : 'text-tinta/70')}>{rotulo}</button>
+        ))}
+      </div>
+
+      {modo === 'mes' ? (
+        <MesGrade ags={ags} mes={mes} onMes={setMes} hojeIso={hojeIso} onDia={(d) => { onDia(d); setModo('dia') }} />
+      ) : (<>
       <div className="flex items-center gap-2">
         <button aria-label="Dia anterior" className={passo} onClick={() => onDia(somaDias(dia, -1))}>‹</button>
         <input type="date" aria-label="Escolher data" value={dia} onChange={(e) => e.target.value && onDia(e.target.value)} className="min-h-11 min-w-0 flex-1 rounded-full border border-tinta/20 px-4 focus:border-ouro focus:outline-none sm:flex-none" />
@@ -238,6 +256,7 @@ export function Agenda({ ags, duracoes, dia, onDia, onAgendar, onEditar, onLembr
           </div>
         </div>
       )}
+      </>)}
     </section>
   )
 }
@@ -287,5 +306,63 @@ export function AjustesAgendaModal({ config, onClose }: { config: Config; onClos
       <p className="mb-5 whitespace-pre-line rounded-lg bg-ouro-claro p-3 text-xs"><b>Prévia:</b>{'\n'}{montaMensagem(modelo, 'Ana Souza', config.nomeClinica, 'Pedro Souza', { data: dataCurta('2026-11-13'), hora: '14:30', servico: 'Audiometria' })}</p>
       <button disabled={salvando} onClick={salvar} className={cls(btn.base, btn.ouro, 'w-full')}>{salvando ? 'Salvando…' : 'Salvar'}</button>
     </Modal>
+  )
+}
+
+const MESES_LONGO = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
+
+/** Calendário do mês (domingo a sábado, como o Google Agenda). Tocar num dia abre a lista daquele dia. */
+function MesGrade({ ags, mes, onMes, hojeIso, onDia }: {
+  ags: Agendamento[]; mes: string; onMes: (m: string) => void; hojeIso: string; onDia: (d: string) => void
+}) {
+  const [a, m] = [+mes.slice(0, 4), +mes.slice(5)]
+  const vazios = new Date(Date.UTC(a, m - 1, 1)).getUTCDay()
+  const total = new Date(Date.UTC(a, m, 0)).getUTCDate()
+  const vai = (n: number) => onMes(new Date(Date.UTC(a, m - 1 + n, 1)).toISOString().slice(0, 7))
+  const doMes = ags.filter((x) => x.data.startsWith(mes)).sort(porHorario)
+  const passo = 'flex size-11 items-center justify-center rounded-full border border-tinta/20 text-xl hover:border-ouro'
+
+  return (
+    <>
+      <div className="flex items-center gap-2">
+        <button aria-label="Mês anterior" className={passo} onClick={() => vai(-1)}>‹</button>
+        <p aria-live="polite" className="min-w-0 flex-1 text-center font-serif text-xl font-semibold capitalize sm:flex-none sm:px-4">{MESES_LONGO[m - 1]} de {a}</p>
+        <button aria-label="Próximo mês" className={passo} onClick={() => vai(1)}>›</button>
+        <button className={cls(btn.base, btn.linha)} onClick={() => onMes(hojeIso.slice(0, 7))}>Hoje</button>
+      </div>
+      <p className="-mt-2 text-sm text-tinta/60">{doMes.length} consulta{doMes.length === 1 ? '' : 's'} no mês</p>
+      <div className="grid grid-cols-7 gap-px overflow-hidden rounded-2xl border border-tinta/15 bg-tinta/15">
+        {['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'].map((d) => (
+          <div key={d} className="bg-white py-2 text-center text-xs font-semibold uppercase tracking-[0.04em] text-tinta/60">{d}</div>
+        ))}
+        {Array.from({ length: Math.ceil((vazios + total) / 7) * 7 }, (_, i) => {
+          const n = i - vazios + 1
+          if (n < 1 || n > total) return <div key={i} className="min-h-16 bg-[#fbf8f1] sm:min-h-28" />
+          const iso = `${mes}-${String(n).padStart(2, '0')}`
+          const dia = doMes.filter((x) => x.data === iso)
+          const hoje = iso === hojeIso
+          return (
+            <button
+              key={i}
+              onClick={() => onDia(iso)}
+              aria-label={`${n} de ${MESES_LONGO[m - 1]}, ${dia.length} consulta${dia.length === 1 ? '' : 's'}`}
+              className={cls('flex min-h-16 flex-col items-center gap-1 bg-white p-1 text-left hover:bg-ouro-claro sm:min-h-28 sm:items-stretch sm:p-1.5', hoje ? 'ring-2 ring-inset ring-ouro' : '')}
+            >
+              <span className={cls('flex size-7 items-center justify-center rounded-full text-sm sm:self-start', hoje ? 'bg-ouro font-semibold' : '')}>{n}</span>
+              {dia.length > 0 && <span className="rounded-full bg-ouro px-2 text-xs font-semibold sm:hidden">{dia.length}</span>}
+              <span className="hidden w-full flex-col gap-0.5 sm:flex">
+                {dia.slice(0, 3).map((x) => (
+                  <span key={x.id} className={cls('truncate rounded px-1.5 py-0.5 text-xs', x.confirmacaoEnviada ? 'bg-ouro-claro' : 'border border-ouro/60')}>
+                    <b className="font-semibold">{x.hora}</b> {x.nome}
+                  </span>
+                ))}
+                {dia.length > 3 && <span className="px-1.5 text-xs text-tinta/60">+{dia.length - 3} mais</span>}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+      <p className="text-xs text-tinta/60">Preenchido = confirmação enviada · contorno dourado = a confirmar.</p>
+    </>
   )
 }
