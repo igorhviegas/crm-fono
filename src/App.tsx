@@ -3,6 +3,7 @@ import { Agenda, AgendarModal, AjustesAgendaModal, LembreteModal } from './agend
 import { entrarComGoogle, marcaCadastroVisto, sair, salvaConfig, useAgendamentos, useConfig, useMensagens, usePacientes, useSessao } from './data'
 import { aniversariantes, cadastrosNovos, dataPorExtenso, isoDe, lembretesPendentes, type Agendamento, cadastrosPeloLink, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, semAcento, type Filtro, type Paciente, type Tipo } from './domain'
 import { ConfigModal, ImportarModal, LinkCadastroModal, ListaModal, MensagemModal, PacienteModal, PerfilModal, ResumoCadastroModal } from './modals'
+import { Tutorial } from './tutorial'
 import { btn, cls } from './ui'
 
 const Marca = ({ alinha = 'text-center' }: { alinha?: string }) => (
@@ -90,7 +91,7 @@ function Painel({ email }: { email: string }) {
   const [menu, setMenu] = useState(false)
   const [sino, setSino] = useState(false)
   const [msgs, setMsgs] = useState(false)
-  const [vista, setVista] = useState<'painel' | 'agenda'>('painel')
+  const [vista, setVista] = useState<'painel' | 'agenda' | 'ajuda'>('painel')
   const ags = useAgendamentos(true)
   const [diaAgenda, setDiaAgenda] = useState(() => isoDe(hojeSP()))
   const [aberto, setAberto] = useState<Aberto>(null)
@@ -233,6 +234,17 @@ function Painel({ email }: { email: string }) {
                 </>
               )}
             </div>
+            <button
+              aria-label="Tutorial: como usar o sistema"
+              title="Tutorial"
+              aria-current={vista === 'ajuda' ? 'page' : undefined}
+              className={cls('flex size-11 items-center justify-center rounded-full hover:bg-ouro-claro', vista === 'ajuda' ? 'bg-ouro-claro' : '')}
+              onClick={() => setVista('ajuda')}
+            >
+              <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="9" /><path d="M12 11v5" /><path d="M12 8h.01" />
+              </svg>
+            </button>
             <span className="hidden text-tinta/60 lg:inline">{email}</span>
             <button className={cls(btn.base, btn.linha, 'min-h-10 px-4')} title={email} onClick={sair}>Sair</button>
             <div className="relative md:hidden">
@@ -265,6 +277,7 @@ function Painel({ email }: { email: string }) {
             <button key={v} aria-pressed={vista === v} onClick={() => setVista(v)} className={cls('min-h-10 rounded-full px-5 capitalize', vista === v ? 'bg-tinta text-white' : 'text-tinta/70')}>{v}</button>
           ))}
         </div>
+        {vista === 'ajuda' && <Tutorial onFechar={() => setVista('painel')} />}
         {vista === 'agenda' && (
           <Agenda ags={ags} duracoes={config.duracoes} dia={diaAgenda} onDia={setDiaAgenda} onAgendar={() => setAberto({ t: 'agendar', a: null })} onEditar={(a) => setAberto({ t: 'agendar', a })} onLembrar={(a) => setAberto({ t: 'lembrar', a })} onAjustes={() => setAberto({ t: 'ajustes' })} />
         )}
