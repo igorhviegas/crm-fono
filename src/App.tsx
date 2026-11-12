@@ -155,11 +155,6 @@ function Painel({ email }: { email: string }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2 text-sm">
-            <button aria-label="Ajustes da agenda" title="Ajustes da agenda" className="flex size-11 items-center justify-center rounded-full hover:bg-ouro-claro" onClick={() => setAberto({ t: 'ajustes' })}>
-              <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-              </svg>
-            </button>
             <div className="relative">
               <button
                 aria-label={lembretes.length ? `${lembretes.length} confirmação(ões) de consulta para enviar` : 'Confirmações de consulta'}
@@ -271,7 +266,7 @@ function Painel({ email }: { email: string }) {
           ))}
         </div>
         {vista === 'agenda' && (
-          <Agenda ags={ags} duracoes={config.duracoes} dia={diaAgenda} onDia={setDiaAgenda} onAgendar={() => setAberto({ t: 'agendar', a: null })} onEditar={(a) => setAberto({ t: 'agendar', a })} onLembrar={(a) => setAberto({ t: 'lembrar', a })} />
+          <Agenda ags={ags} duracoes={config.duracoes} dia={diaAgenda} onDia={setDiaAgenda} onAgendar={() => setAberto({ t: 'agendar', a: null })} onEditar={(a) => setAberto({ t: 'agendar', a })} onLembrar={(a) => setAberto({ t: 'lembrar', a })} onAjustes={() => setAberto({ t: 'ajustes' })} />
         )}
         {vista === 'painel' && <>
         <div className="flex flex-wrap items-end justify-between gap-4">
