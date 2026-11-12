@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { entrarComGoogle, marcaCadastroVisto, sair, salvaConfig, useConfig, useMensagens, usePacientes, useSessao } from './data'
-import { aniversariantes, cadastrosNovos, cadastrosPeloLink, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, semAcento, type Filtro, type Paciente, type Tipo } from './domain'
+import { Agenda, AgendarModal, AjustesAgendaModal, LembreteModal } from './agenda'
+import { entrarComGoogle, marcaCadastroVisto, sair, salvaConfig, useAgendamentos, useConfig, useMensagens, usePacientes, useSessao } from './data'
+import { aniversariantes, cadastrosNovos, dataPorExtenso, isoDe, lembretesPendentes, type Agendamento, cadastrosPeloLink, dataBR, destinatarioDe, diasAteAniversario, formataTelefone, hojeSP, primeiroNome, retornosDoMes, semAcento, type Filtro, type Paciente, type Tipo } from './domain'
 import { ConfigModal, ImportarModal, LinkCadastroModal, ListaModal, MensagemModal, PacienteModal, PerfilModal, ResumoCadastroModal } from './modals'
 import { btn, cls } from './ui'
 
@@ -73,8 +74,9 @@ export default function App() {
 }
 
 type Aberto =
-  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'link' } | { t: 'resumo'; p: Paciente } | { t: 'config' } | { t: 'planos' } | { t: 'servicos' }
+  | { t: 'novo' } | { t: 'editar'; p: Paciente } | { t: 'importar' } | { t: 'link' } | { t: 'resumo'; p: Paciente } | { t: 'config' } | { t: 'ajustes' } | { t: 'planos' } | { t: 'servicos' }
   | { t: 'perfil'; p: Paciente } | { t: 'msg'; p: Paciente; tipo: Tipo }
+  | { t: 'agendar'; a: Agendamento | null } | { t: 'lembrar'; a: Agendamento }
   | null
 
 function Painel({ email }: { email: string }) {
@@ -87,11 +89,16 @@ function Painel({ email }: { email: string }) {
   const [aba, setAba] = useState<'ativos' | 'novos' | 'arquivados'>('ativos')
   const [menu, setMenu] = useState(false)
   const [sino, setSino] = useState(false)
+  const [msgs, setMsgs] = useState(false)
+  const [vista, setVista] = useState<'painel' | 'agenda'>('painel')
+  const ags = useAgendamentos(true)
+  const [diaAgenda, setDiaAgenda] = useState(() => isoDe(hojeSP()))
   const [aberto, setAberto] = useState<Aberto>(null)
   const desktop = useDesktop()
   const hoje = hojeSP()
 
   const lista = pacientes ?? []
+  const lembretes = lembretesPendentes(ags, hoje)
   const novos = cadastrosNovos(lista)
   const aniv = useMemo(() => aniversariantes(lista, filtro, hoje), [lista, filtro, hoje.d, hoje.m]) // eslint-disable-line react-hooks/exhaustive-deps
   const q = semAcento(busca.trim()) // "joao" encontra "João"
@@ -140,12 +147,57 @@ function Painel({ email }: { email: string }) {
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-10">
           <Marca alinha="text-left" />
           <nav aria-label="Seções" className="hidden flex-1 gap-5 text-sm font-medium md:flex">
-            <span aria-current="page" className="flex min-h-11 items-center border-b-2 border-ouro">Painel</span>
+            {(['painel', 'agenda'] as const).map((v) => (
+              <button key={v} aria-current={vista === v ? 'page' : undefined} className={cls('min-h-11 border-b-2 capitalize', vista === v ? 'border-ouro' : 'border-transparent text-tinta/60 hover:text-tinta')} onClick={() => setVista(v)}>{v}</button>
+            ))}
             {nav.map(([t, rotulo]) => (
               <button key={t} className="min-h-11 border-b-2 border-transparent text-tinta/60 hover:text-tinta" onClick={() => setAberto({ t })}>{rotulo}</button>
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2 text-sm">
+            <button aria-label="Ajustes da agenda" title="Ajustes da agenda" className="flex size-11 items-center justify-center rounded-full hover:bg-ouro-claro" onClick={() => setAberto({ t: 'ajustes' })}>
+              <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
+              </svg>
+            </button>
+            <div className="relative">
+              <button
+                aria-label={lembretes.length ? `${lembretes.length} confirmação(ões) de consulta para enviar` : 'Confirmações de consulta'}
+                aria-expanded={msgs}
+                className="relative flex size-11 items-center justify-center rounded-full hover:bg-ouro-claro"
+                onClick={() => setMsgs(!msgs)}
+              >
+                <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-5.4A8 8 0 1 1 21 12z" />
+                </svg>
+                {lembretes.length > 0 && (
+                  <span className="absolute right-0.5 top-0.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-ouro px-1 text-xs font-semibold">{lembretes.length}</span>
+                )}
+              </button>
+              {msgs && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setMsgs(false)} />
+                  <div className="absolute right-0 z-40 mt-1 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-ouro/40 bg-white shadow-lg">
+                    <p className="border-b border-tinta/10 px-4 py-3 font-serif text-lg font-semibold">Confirmar consultas</p>
+                    {lembretes.length === 0 ? (
+                      <p className="px-4 py-4 text-sm text-tinta/60">Nenhuma confirmação pendente para hoje ou amanhã.</p>
+                    ) : (
+                      <ul className="max-h-80 overflow-y-auto">
+                        {lembretes.map((a) => (
+                          <li key={a.id}>
+                            <button className="block min-h-12 w-full px-4 py-2 text-left hover:bg-ouro-claro" onClick={() => { setMsgs(false); setAberto({ t: 'lembrar', a }) }}>
+                              <span className="block truncate font-medium">{a.nome}</span>
+                              <span className="block text-xs capitalize text-tinta/60">{dataPorExtenso(a.data, hoje)} às {a.hora}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <button className="block min-h-12 w-full border-t border-tinta/10 px-4 text-left text-sm font-medium hover:bg-ouro-claro" onClick={() => { setMsgs(false); setVista('agenda') }}>Abrir a agenda</button>
+                  </div>
+                </>
+              )}
+            </div>
             <div className="relative">
               <button
                 aria-label={novos.length ? `${novos.length} novo${novos.length === 1 ? '' : 's'} cadastro${novos.length === 1 ? '' : 's'}` : 'Novos cadastros'}
@@ -196,6 +248,9 @@ function Painel({ email }: { email: string }) {
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setMenu(false)} />
                   <nav className="absolute right-0 z-40 mt-1 w-56 overflow-hidden rounded-2xl border border-ouro/40 bg-white shadow-lg">
+                    {(['painel', 'agenda'] as const).map((v) => (
+                      <button key={v} className={cls('block min-h-12 w-full px-4 text-left capitalize hover:bg-ouro-claro', vista === v ? 'font-semibold' : '')} onClick={() => { setMenu(false); setVista(v) }}>{v}</button>
+                    ))}
                     {nav.map(([t, rotulo]) => (
                       <button key={t} className="block min-h-12 w-full px-4 text-left hover:bg-ouro-claro" onClick={() => { setMenu(false); setAberto({ t }) }}>
                         {rotulo}
@@ -210,6 +265,15 @@ function Painel({ email }: { email: string }) {
       </header>
 
       <main className="mx-auto flex max-w-7xl flex-col gap-10 px-4 pt-8 sm:px-10">
+        <div role="group" aria-label="Seção" className="flex self-start rounded-full border border-tinta/15 p-0.5 text-sm font-medium md:hidden">
+          {(['painel', 'agenda'] as const).map((v) => (
+            <button key={v} aria-pressed={vista === v} onClick={() => setVista(v)} className={cls('min-h-10 rounded-full px-5 capitalize', vista === v ? 'bg-tinta text-white' : 'text-tinta/70')}>{v}</button>
+          ))}
+        </div>
+        {vista === 'agenda' && (
+          <Agenda ags={ags} duracoes={config.duracoes} dia={diaAgenda} onDia={setDiaAgenda} onAgendar={() => setAberto({ t: 'agendar', a: null })} onEditar={(a) => setAberto({ t: 'agendar', a })} onLembrar={(a) => setAberto({ t: 'lembrar', a })} />
+        )}
+        {vista === 'painel' && <>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-sm capitalize text-tinta/60">{dataExtenso}</p>
@@ -415,9 +479,13 @@ function Painel({ email }: { email: string }) {
             </aside>
           )}
         </section>
+        </>}
       </main>
 
       {aberto?.t === 'novo' && <PacienteModal paciente={null} planos={planos} servicos={config.servicos} onClose={fechar} />}
+      {aberto?.t === 'agendar' && <AgendarModal ag={aberto.a} ags={ags} dataInicial={diaAgenda} pacientes={lista} planos={planos} config={config} onClose={fechar} />}
+      {aberto?.t === 'ajustes' && <AjustesAgendaModal config={config} onClose={fechar} />}
+      {aberto?.t === 'lembrar' && <LembreteModal ag={ags.find((x) => x.id === aberto.a.id) ?? aberto.a} config={config} onClose={fechar} />}
       {aberto?.t === 'resumo' && <ResumoCadastroModal paciente={aberto.p} onClose={fechar} />}
       {aberto?.t === 'link' &&<LinkCadastroModal planos={config.planos} clinica={config.nomeClinica} onClose={fechar} />}
       {aberto?.t === 'editar' && <PacienteModal paciente={aberto.p} planos={planos} servicos={config.servicos} onClose={fechar} />}
