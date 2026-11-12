@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   aniversariantes, diasAteAniversario, linkWhatsApp, montaMensagem, normalizaNascimento,
-  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, resumoCadastro, cadastrosNovos, cadastrosPeloLink, normalizaCpf, formataCpf, semAcento, type Paciente,
+  normalizaTelefone, variaveisInvalidas, vencimentoRetorno, retornosDoMes, destinatarioDe, chaveModelo, idadeEm, resumoCadastro, cadastrosNovos, cadastrosPeloLink, normalizaCpf, formataCpf, semAcento, lembretesPendentes, somaDias, duracaoDe, horaFim, dataCurta, dataPorExtenso, type Agendamento, type Paciente,
 } from './domain'
 
 describe('cpf e busca', () => {
@@ -138,5 +138,28 @@ describe('lembrete de retorno', () => {
     const hoje = { a: 2026, m: 10, d: 21 }
     const ps = [r('2026-04-25', 6), r('2026-04-05', 6), r('2026-04-25', 5), r('2026-04-25', 6, true)]
     expect(retornosDoMes(ps, hoje).map((x) => x.vence)).toEqual(['2026-10-05', '2026-10-25'])
+  })
+})
+
+describe('agenda', () => {
+  const hoje = { a: 2026, m: 12, d: 31 }
+  const ag = (data: string, o: Partial<Agendamento> = {}): Agendamento => ({ id: data, nome: 'A', destNome: 'A', whatsapp: '', data, hora: '09:00', confirmacaoEnviada: false, ...o })
+  it('lembra hoje e amanhã (virando o ano), ignora enviados, passados e depois de amanhã', () => {
+    const l = lembretesPendentes([ag('2027-01-01'), ag('2026-12-31'), ag('2026-12-30'), ag('2027-01-02'), ag('2027-01-01', { id: 'x', confirmacaoEnviada: true })], hoje)
+    expect(l.map((x) => x.data)).toEqual(['2026-12-31', '2027-01-01'])
+  })
+  it('soma dias e escreve a data', () => {
+    expect(somaDias('2028-02-28', 1)).toBe('2028-02-29')
+    expect(dataPorExtenso('2027-01-01', hoje)).toBe('amanhã (sexta-feira, 01/01)')
+  })
+  it('monta a confirmação com data, hora e serviço', () => {
+    expect(montaMensagem('{nome}: {servico} {data} {hora} ({paciente})', 'Ana Souza', 'C', 'Pedro Souza', { servico: 'X', data: 'd', hora: 'h' })).toBe('Ana: X d h (Pedro)')
+    expect(dataCurta('2026-11-13')).toBe('13/11 sexta-feira')
+    expect(horaFim('14:30', 60)).toBe('15:30')
+    expect(duracaoDe({ servico: 'A' }, { A: 60 })).toBe(60)
+    expect(duracaoDe({ servico: 'A', duracao: 45 }, { A: 60 })).toBe(45)
+    expect(duracaoDe({}, {})).toBe(30)
+    expect(variaveisInvalidas('{hora}')).toEqual(['hora'])
+    expect(variaveisInvalidas('{hora}', true)).toEqual([])
   })
 })

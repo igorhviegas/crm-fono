@@ -28,7 +28,7 @@ export type Paciente = {
 /** AAAA-MM-DD → DD/MM/AAAA */
 export const dataBR = (iso: string) => iso.split('-').reverse().join('/')
 
-export type ChaveModelo = 'modeloAniversario' | 'modeloAniversarioResp' | 'modeloRetorno' | 'modeloRetornoResp'
+export type ChaveModelo = 'modeloAniversario' | 'modeloAniversarioResp' | 'modeloRetorno' | 'modeloRetornoResp' | 'modeloConfirmacao'
 
 // "Resp" = mensagem enviada ao responsável (fala do paciente em 3ª pessoa).
 export const MODELOS_PADRAO: Record<ChaveModelo, string> = {
@@ -40,10 +40,28 @@ export const MODELOS_PADRAO: Record<ChaveModelo, string> = {
     'Olá, {nome}! Tudo bem? 😊 Aqui é da {clinica}. Estamos entrando em contato para saber como você está e verificar se gostaria de agendar ou conversar sobre o seu próximo atendimento. Ficamos à disposição!',
   modeloRetornoResp:
     'Olá, {nome}! Tudo bem? 😊 Aqui é da {clinica}. Estamos entrando em contato para saber como {paciente} está e verificar se gostariam de agendar ou conversar sobre o próximo atendimento. Ficamos à disposição!',
+  // confirmação de consulta; editável em "Ajustes da agenda"
+  modeloConfirmacao: `Olá! 😊 Tudo bem?
+
+Estamos passando para confirmar seu atendimento.
+
+📅 Data: {data}
+⏰ Horário: {hora}
+
+📍 Endereço: Av. Governador Valadares, 851, 9º andar, sala 907, Centro de Betim
+Prédio Selleto Office
+
+Pedimos, por gentileza, que responda “SIM” para confirmar seu comparecimento ou “NÃO” caso não possa comparecer.
+
+⚠️ Importante: caso não tenhamos nenhum retorno e a agenda esteja cheia, o horário poderá ser desmarcado automaticamente e disponibilizado para outro paciente.
+
+Agradecemos a compreensão! 💙
+
+Aguardamos você! ✨`,
 }
 
-export const chaveModelo = (tipo: Tipo, resp: boolean): ChaveModelo =>
-  `modelo${tipo === 'aniversario' ? 'Aniversario' : 'Retorno'}${resp ? 'Resp' : ''}`
+export const chaveModelo = (tipo: Tipo, resp: boolean) =>
+  `modelo${tipo === 'aniversario' ? 'Aniversario' : 'Retorno'}${resp ? 'Resp' : ''}` as ChaveModelo
 
 export const CLINICA_PADRAO = 'Bárbara Rabelo Fonoaudiologia'
 
@@ -129,14 +147,15 @@ export function aniversariantes(ps: Paciente[], filtro: Filtro, hoje: Dia): Paci
 
 export const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? ''
 
-/** Só {nome}, {paciente} e {clinica}; qualquer outra variável é rejeitada na validação. */
-export function variaveisInvalidas(modelo: string): string[] {
-  return [...modelo.matchAll(/\{([^}]*)\}/g)].map((m) => m[1]).filter((v) => !['nome', 'paciente', 'clinica'].includes(v))
+/** Só {nome}, {paciente} e {clinica} (e {data}, {hora}, {servico} na confirmação); qualquer outra variável é rejeitada. */
+export function variaveisInvalidas(modelo: string, agenda = false): string[] {
+  const ok = ['nome', 'paciente', 'clinica', ...(agenda ? ['data', 'hora', 'servico'] : [])]
+  return [...modelo.matchAll(/\{([^}]*)\}/g)].map((m) => m[1]).filter((v) => !ok.includes(v))
 }
 
 /** {nome} = quem recebe; {paciente} = o paciente (útil quando quem recebe é o responsável). */
-export function montaMensagem(modelo: string, destinatario: string, clinica: string, paciente = destinatario): string {
-  return modelo
+export function montaMensagem(modelo: string, destinatario: string, clinica: string, paciente = destinatario, extras: Record<string, string> = {}): string {
+  return Object.entries(extras).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, v), modelo)
     .replaceAll('{nome}', primeiroNome(destinatario))
     .replaceAll('{paciente}', primeiroNome(paciente))
     .replaceAll('{clinica}', clinica)
@@ -201,3 +220,55 @@ export const formataCpf = (c: string) => c.replace(/^(\d{3})(\d{3})(\d{3})(\d{2}
 
 /** Minúsculas e sem acentos: "João" e "joao" se encontram na busca. */
 export const semAcento = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
+
+// ---- agenda ----
+
+export type Agendamento = {
+  id: string
+  pacienteId?: string
+  nome: string // paciente
+  destNome: string // quem recebe a confirmação (o próprio paciente ou o responsável)
+  whatsapp: string // 55DDDNUMERO ou ''
+  data: string // AAAA-MM-DD
+  hora: string // HH:MM
+  servico?: string
+  convenio?: string
+  duracao?: number // minutos; ausente = a do serviço (Ajustes) ou DURACAO_PADRAO
+  confirmacaoEnviada: boolean
+}
+
+export const isoDe = (d: Dia) => `${d.a}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`
+
+export const somaDias = (iso: string, n: number) => new Date(Date.parse(iso + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
+
+export const porHorario = (a: Agendamento, b: Agendamento) => (a.data + a.hora).localeCompare(b.data + b.hora)
+
+/** Consultas de hoje e de amanhã cuja confirmação ainda não foi enviada (a regra é avisar um dia antes; as de hoje aparecem como atrasadas). */
+export const lembretesPendentes = (ags: Agendamento[], hoje: Dia) => {
+  const h = isoDe(hoje)
+  const a = somaDias(h, 1)
+  return ags.filter((x) => !x.confirmacaoEnviada && x.data >= h && x.data <= a).sort(porHorario)
+}
+
+const DIAS = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
+/** "amanhã (quinta-feira, 13/11)" / "hoje (…)" / "quinta-feira, 13/11" */
+export function dataPorExtenso(iso: string, hoje: Dia): string {
+  const h = isoDe(hoje)
+  const base = `${DIAS[new Date(iso + 'T12:00:00Z').getUTCDay()]}, ${iso.slice(8)}/${iso.slice(5, 7)}`
+  return iso === h ? `hoje (${base})` : iso === somaDias(h, 1) ? `amanhã (${base})` : base
+}
+
+export const DURACAO_PADRAO = 30
+
+/** Minutos da consulta: o valor dela, senão o do serviço (Ajustes), senão 30. */
+export const duracaoDe = (a: { duracao?: number; servico?: string }, duracoes: Record<string, number>) =>
+  a.duracao ?? (a.servico ? duracoes[a.servico] : undefined) ?? DURACAO_PADRAO
+
+/** "14:30" + 60 → "15:30" (limitado a 23:59). */
+export function horaFim(hora: string, min: number): string {
+  const t = Math.min(+hora.slice(0, 2) * 60 + +hora.slice(3) + min, 1439)
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`
+}
+
+/** "13/11 sexta-feira": formato usado na mensagem de confirmação. */
+export const dataCurta = (iso: string) => `${iso.slice(8)}/${iso.slice(5, 7)} ${DIAS[new Date(iso + 'T12:00:00Z').getUTCDay()]}`

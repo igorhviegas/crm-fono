@@ -115,6 +115,23 @@ service cloud.firestore {
       }
     }
 
+    // Agenda: consultas marcadas pela recepcao. Pode apagar (consulta cancelada).
+    match /agendamentos/{id} {
+      allow read, delete: if autorizada();
+      allow create, update: if autorizada()
+        && request.resource.data.keys().hasOnly(['nome', 'destNome', 'whatsapp', 'data', 'hora', 'pacienteId', 'servico', 'convenio', 'duracao', 'confirmacaoEnviada', 'criadoEm'])
+        && request.resource.data.nome is string && request.resource.data.nome.size() > 0 && request.resource.data.nome.size() <= 120
+        && request.resource.data.destNome is string && request.resource.data.destNome.size() <= 120
+        && request.resource.data.whatsapp is string && (request.resource.data.whatsapp == '' || request.resource.data.whatsapp.matches('^55[0-9]{10,11}$'))
+        && request.resource.data.data.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.hora.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$')
+        && request.resource.data.confirmacaoEnviada is bool
+        && (!('duracao' in request.resource.data) || (request.resource.data.duracao is int && request.resource.data.duracao >= 5 && request.resource.data.duracao <= 480))
+        && textoOpcional(request.resource.data, 'pacienteId', 40)
+        && textoOpcional(request.resource.data, 'servico', 60)
+        && textoOpcional(request.resource.data, 'convenio', 60);
+    }
+
     // Leitura de todas as mensagens de uma vez (para marcar quem ja recebeu parabens).
     match /{path=**}/mensagens/{mid} {
       allow read: if autorizada();
@@ -123,14 +140,16 @@ service cloud.firestore {
     match /config/{doc} {
       allow read: if autorizada();
       allow write: if autorizada()
-        && request.resource.data.keys().hasOnly(['nomeClinica', 'modeloAniversario', 'modeloAniversarioResp', 'modeloRetorno', 'modeloRetornoResp', 'planos', 'servicos'])
+        && request.resource.data.keys().hasOnly(['nomeClinica', 'modeloAniversario', 'modeloAniversarioResp', 'modeloRetorno', 'modeloRetornoResp', 'modeloConfirmacao', 'planos', 'servicos', 'duracoes'])
         && request.resource.data.nomeClinica is string && request.resource.data.nomeClinica.size() <= 100
         && (!('planos' in request.resource.data) || (request.resource.data.planos is list && request.resource.data.planos.size() <= 60))
         && (!('servicos' in request.resource.data) || (request.resource.data.servicos is list && request.resource.data.servicos.size() <= 60))
+        && (!('duracoes' in request.resource.data) || (request.resource.data.duracoes is map && request.resource.data.duracoes.size() <= 60))
         && textoOpcional(request.resource.data, 'modeloAniversario', 1000)
         && textoOpcional(request.resource.data, 'modeloAniversarioResp', 1000)
         && textoOpcional(request.resource.data, 'modeloRetorno', 1000)
-        && textoOpcional(request.resource.data, 'modeloRetornoResp', 1000);
+        && textoOpcional(request.resource.data, 'modeloRetornoResp', 1000)
+        && textoOpcional(request.resource.data, 'modeloConfirmacao', 1000);
     }
   }
 }

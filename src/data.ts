@@ -2,10 +2,10 @@
 import { useEffect, useState } from 'react'
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth'
 import {
-  addDoc, Bytes, collection, collectionGroup, deleteField, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch,
+  addDoc, Bytes, collection, collectionGroup, deleteDoc, deleteField, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch,
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
-import { ATENDIMENTOS, CLINICA_PADRAO, CONVENIOS_SUGERIDOS, MODELOS_PADRAO, type ChaveModelo, type Destinatario, type Paciente, type Tipo } from './domain'
+import { ATENDIMENTOS, CLINICA_PADRAO, CONVENIOS_SUGERIDOS, MODELOS_PADRAO, type Agendamento, type ChaveModelo, type Destinatario, type Paciente, type Tipo } from './domain'
 import type { Ficha } from './ficha'
 
 export type Sessao = { estado: 'carregando' | 'deslogada' | 'sem-acesso' | 'ok'; user: User | null }
@@ -47,9 +47,9 @@ export function usePacientes(ativo: boolean): Paciente[] | null {
 }
 
 // planos = planos de saúde/convênios; servicos = tipos de atendimento. Ambos editáveis pelo menu.
-export type Config = { nomeClinica: string; planos: string[]; servicos: string[] } & Record<ChaveModelo, string>
+export type Config = { nomeClinica: string; planos: string[]; servicos: string[]; duracoes: Record<string, number> } & Record<ChaveModelo, string>
 
-const CONFIG_PADRAO: Config = { nomeClinica: CLINICA_PADRAO, planos: CONVENIOS_SUGERIDOS, servicos: ATENDIMENTOS, ...MODELOS_PADRAO }
+const CONFIG_PADRAO: Config = { nomeClinica: CLINICA_PADRAO, planos: CONVENIOS_SUGERIDOS, servicos: ATENDIMENTOS, duracoes: {}, ...MODELOS_PADRAO }
 
 export function useConfig(ativo: boolean): Config {
   const [c, setC] = useState<Config>(CONFIG_PADRAO)
@@ -122,10 +122,11 @@ function montaDados(id: string | null, d: Dados): Record<string, unknown> {
   return dados
 }
 
-export async function salvaPaciente(id: string | null, d: Dados) {
+export async function salvaPaciente(id: string | null, d: Dados): Promise<string> {
   const dados = montaDados(id, d)
   if (id) await updateDoc(doc(db, 'pacientes', id), dados)
-  else await addDoc(collection(db, 'pacientes'), { ...dados, criadoEm: serverTimestamp() })
+  else id = (await addDoc(collection(db, 'pacientes'), { ...dados, criadoEm: serverTimestamp() })).id
+  return id
 }
 
 // ---- link de cadastro (convite de uso único, enviado ao paciente) ----
@@ -239,3 +240,28 @@ export async function salvaConsulta(p: Paciente, data: string, servico: string) 
 
 /** A equipe abriu o cadastro feito pelo link: sai do sininho. */
 export const marcaCadastroVisto = (id: string) => updateDoc(doc(db, 'pacientes', id), { cadastroVisto: true })
+
+// ---- agenda ----
+
+// ponytail: carrega a agenda inteira; se passar de alguns milhares de consultas, filtrar por data (where 'data' >= ...)
+export function useAgendamentos(ativo: boolean): Agendamento[] {
+  const [l, setL] = useState<Agendamento[]>([])
+  useEffect(() => {
+    if (!ativo) return
+    return onSnapshot(collection(db, 'agendamentos'), (q) => setL(q.docs.map((d) => ({ ...d.data(), id: d.id }) as Agendamento)))
+  }, [ativo])
+  return l
+}
+
+export async function salvaAgendamento(id: string | null, d: Omit<Agendamento, 'id'>) {
+  const dados: Record<string, unknown> = { nome: d.nome, destNome: d.destNome, whatsapp: d.whatsapp, data: d.data, hora: d.hora, duracao: d.duracao, confirmacaoEnviada: d.confirmacaoEnviada }
+  for (const k of ['pacienteId', 'servico', 'convenio'] as const) {
+    if (d[k]) dados[k] = d[k]
+    else if (id) dados[k] = deleteField()
+  }
+  if (id) await updateDoc(doc(db, 'agendamentos', id), dados)
+  else await addDoc(collection(db, 'agendamentos'), { ...dados, criadoEm: serverTimestamp() })
+}
+
+export const confirmaLembrete = (id: string) => updateDoc(doc(db, 'agendamentos', id), { confirmacaoEnviada: true })
+export const apagaAgendamento = (id: string) => deleteDoc(doc(db, 'agendamentos', id))
