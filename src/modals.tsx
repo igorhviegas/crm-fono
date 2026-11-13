@@ -3,7 +3,7 @@ import QRCode from 'qrcode'
 import { geraArte, salvaArte } from './art'
 import { extraiFicha, lerDocx, type Ficha } from './ficha'
 import {
-  confirmaEnvio, criaConvite, importaFichas, LIMITE_RELATORIO, registraMensagem, salvaConfig, salvaConsulta, salvaPaciente, salvaRelatorio, useConsultas, useRelatorios,
+  apagaPaciente, confirmaEnvio, criaConvite, importaFichas, LIMITE_RELATORIO, registraMensagem, salvaConfig, salvaConsulta, salvaPaciente, salvaRelatorio, useConsultas, useRelatorios,
   type Config, type Msg,
 } from './data'
 import {
@@ -225,6 +225,18 @@ export function PerfilModal({
 
   return (
     <Modal titulo={paciente.nome} onClose={onClose} inline={inline}>
+      <div className="mb-1 flex justify-end">
+        <button
+          type="button" aria-label="Excluir paciente" title="Excluir paciente"
+          className="flex min-h-11 min-w-11 items-center justify-center rounded-full text-red-700 hover:bg-red-50"
+          onClick={async () => {
+            if (!window.confirm(`Excluir ${paciente.nome} definitivamente? Consultas, relatórios e histórico também serão apagados. Isso não pode ser desfeito (para só esconder, use “Arquivar” em Editar cadastro).`)) return
+            try { await apagaPaciente(paciente.id); onClose() } catch { window.alert('Não foi possível excluir. Verifique a conexão e tente novamente.') }
+          }}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v5M14 11v5" /></svg>
+        </button>
+      </div>
       <div className="mb-5 divide-y divide-tinta/10">
         {linha('Nascimento', nasc && dataBR(nasc))}
         {linha('Idade', nasc && `${idadeEm(nasc, hojeSP())} anos`)}

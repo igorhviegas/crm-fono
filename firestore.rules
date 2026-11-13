@@ -78,7 +78,7 @@ service cloud.firestore {
             && request.resource.data.arquivado == false
             && !('cadastroVisto' in request.resource.data) // quem se cadastra nao marca o proprio aviso como visto
             && request.resource.data.destinatario == 'paciente');
-      allow delete: if false; // so arquivar; exclusao definitiva pelo console
+      allow delete: if autorizada(); // exclusao definitiva pelo botao de lixeira no perfil
 
       // Consultas: data + servico prestado. Pode apagar (lancamento errado).
       match /consultas/{cid} {
@@ -100,7 +100,7 @@ service cloud.firestore {
       }
 
       // Historico de mensagens: registra "link_aberto" e depois pode virar "envio_confirmado".
-      // Nao guarda o texto da mensagem e nao pode ser apagado.
+      // Nao guarda o texto da mensagem; so e apagado junto com o paciente.
       match /mensagens/{mid} {
         allow create: if autorizada()
           && request.resource.data.keys().hasOnly(['tipo', 'destinatario', 'status', 'criadoEm'])
@@ -111,7 +111,7 @@ service cloud.firestore {
         allow update: if autorizada()
           && request.resource.data.status == 'envio_confirmado'
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']);
-        allow delete: if false;
+        allow delete: if autorizada();
       }
     }
 
