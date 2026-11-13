@@ -161,7 +161,7 @@ export function montaMensagem(modelo: string, destinatario: string, clinica: str
     .replaceAll('{clinica}', clinica)
 }
 
-export const linkWhatsApp = (tel: string, texto: string) => `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`
+export const linkWhatsApp = (tel: string, texto: string) => `https://api.whatsapp.com/send?phone=${tel}&text=${encodeURIComponent(texto)}`
 
 /** Data (AAAA-MM-DD) em que vence o retorno: último atendimento + N meses (dia 31 em mês curto cai no último dia). */
 export function vencimentoRetorno(p: Paciente): string | null {

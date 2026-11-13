@@ -170,7 +170,7 @@ export function LinkCadastroModal({ planos, clinica, onClose }: { planos: string
     if (link) QRCode.toDataURL(link, { width: 240, margin: 1 }).then(setQr, () => setQr(''))
   }, [link])
 
-  const texto = `Olá! Aqui é da ${clinica}. Para agilizar seu atendimento, preencha seu cadastro pelo link: ${link}`
+  const texto = `Olá! Aqui é da ${clinica}. Para agilizar seu atendimento, preencha o cadastro do paciente pelo link: ${link}`
   const whats = tel.trim() ? normalizaTelefone(tel) : null
 
   async function copiar() {
