@@ -145,7 +145,7 @@ function Painel({ email }: { email: string }) {
   return (
     <div className="pb-24">
       <header className="border-b border-tinta/10">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-10">
+        <div className="relative mx-auto flex max-w-7xl flex-wrap items-center gap-x-8 gap-y-2 px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-10">
           <Marca alinha="text-left" />
           <nav aria-label="Seções" className="hidden flex-1 gap-5 text-sm font-medium md:flex">
             {(['painel', 'agenda'] as const).map((v) => (
@@ -156,7 +156,7 @@ function Painel({ email }: { email: string }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2 text-sm">
-            <div className="relative">
+            <div className="sm:relative">
               <button
                 aria-label={lembretes.length ? `${lembretes.length} confirmação(ões) de consulta para enviar` : 'Confirmações de consulta'}
                 aria-expanded={msgs}
@@ -173,7 +173,7 @@ function Painel({ email }: { email: string }) {
               {msgs && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setMsgs(false)} />
-                  <div className="absolute right-0 z-40 mt-1 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-ouro/40 bg-white shadow-lg">
+                  <div className="absolute inset-x-4 top-full z-40 mt-1 overflow-hidden rounded-2xl border border-ouro/40 bg-white shadow-lg sm:inset-x-auto sm:right-0 sm:top-auto sm:w-80">
                     <p className="border-b border-tinta/10 px-4 py-3 font-serif text-lg font-semibold">Confirmar consultas</p>
                     {lembretes.length === 0 ? (
                       <p className="px-4 py-4 text-sm text-tinta/60">Nenhuma confirmação pendente para hoje ou amanhã.</p>
@@ -194,7 +194,7 @@ function Painel({ email }: { email: string }) {
                 </>
               )}
             </div>
-            <div className="relative">
+            <div className="sm:relative">
               <button
                 aria-label={novos.length ? `${novos.length} novo${novos.length === 1 ? '' : 's'} cadastro${novos.length === 1 ? '' : 's'}` : 'Novos cadastros'}
                 aria-expanded={sino}
@@ -211,7 +211,7 @@ function Painel({ email }: { email: string }) {
               {sino && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setSino(false)} />
-                  <div className="absolute right-0 z-40 mt-1 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-ouro/40 bg-white shadow-lg">
+                  <div className="absolute inset-x-4 top-full z-40 mt-1 overflow-hidden rounded-2xl border border-ouro/40 bg-white shadow-lg sm:inset-x-auto sm:right-0 sm:top-auto sm:w-72">
                     <p className="border-b border-tinta/10 px-4 py-3 font-serif text-lg font-semibold">Novos cadastros</p>
                     {novos.length === 0 ? (
                       <p className="px-4 py-4 text-sm text-tinta/60">Nenhum cadastro novo.</p>
@@ -288,13 +288,13 @@ function Painel({ email }: { email: string }) {
             <h1 className="mt-1 font-serif text-3xl font-semibold sm:text-[40px] sm:leading-[48px]">{saudacao}, Bárbara</h1>
             <p className="mt-1 text-tinta/70">
               {semana.length === 1 ? '1 aniversário' : `${semana.length} aniversários`} nesta semana
-              {pendentes ? `, ${pendentes} sem parabéns enviado.` : semana.length ? ', todos com parabéns enviado.' : '.'}
+              {pendentes ? `, ${pendentes} sem parabéns enviado${pendentes === 1 ? '' : 's'}.` : semana.length ? `, todos com parabéns enviado${semana.length === 1 ? '' : 's'}.` : '.'}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
             <button className={cls(btn.base, btn.linha)} onClick={() => setAberto({ t: 'importar' })}>Importar Word</button>
             <button className={cls(btn.base, btn.linha)} onClick={() => setAberto({ t: 'link' })}>Enviar cadastro</button>
-            <button className={cls(btn.base, btn.preto)} onClick={() => setAberto({ t: 'novo' })}>+ Novo paciente</button>
+            <button className={cls(btn.base, btn.preto, 'col-span-2 sm:col-span-1')} onClick={() => setAberto({ t: 'novo' })}>+ Novo paciente</button>
           </div>
         </div>
 
