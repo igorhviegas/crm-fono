@@ -121,8 +121,8 @@ describe('mensagem', () => {
     expect(chaveModelo('retorno', true)).toBe('modeloRetornoResp')
     expect(chaveModelo('aniversario', false)).toBe('modeloAniversario')
   })
-  it('gera link wa.me codificado', () => {
-    expect(linkWhatsApp('5531997115766', 'Olá! 🎉')).toBe('https://wa.me/5531997115766?text=Ol%C3%A1!%20%F0%9F%8E%89')
+  it('gera link do WhatsApp codificado', () => {
+    expect(linkWhatsApp('5531997115766', 'Olá! 🎉')).toBe('https://api.whatsapp.com/send?phone=5531997115766&text=Ol%C3%A1!%20%F0%9F%8E%89')
   })
 })
 

@@ -79,7 +79,7 @@ export default function CadastroPublico({ token }: { token: string }) {
           className="rounded-3xl border border-ouro/40 p-5 sm:p-6"
           onSubmit={(e) => { e.preventDefault(); enviar() }}
         >
-          <h1 className="mb-1 font-serif text-2xl font-semibold">Seu cadastro</h1>
+          <h1 className="mb-1 font-serif text-2xl font-semibold">Cadastro do paciente</h1>
           <p className="mb-5 text-sm text-tinta/70">Só o nome é obrigatório; preencha o que desejar.</p>
           <Erro>{erro}</Erro>
 

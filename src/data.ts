@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth'
 import {
-  addDoc, Bytes, collection, collectionGroup, deleteDoc, deleteField, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch,
+  addDoc, Bytes, collection, getDocs, collectionGroup, deleteDoc, deleteField, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc, updateDoc, writeBatch,
 } from 'firebase/firestore'
 import { auth, db } from './firebase'
 import { ATENDIMENTOS, CLINICA_PADRAO, CONVENIOS_SUGERIDOS, MODELOS_PADRAO, type Agendamento, type ChaveModelo, type Destinatario, type Paciente, type Tipo } from './domain'
@@ -127,6 +127,15 @@ export async function salvaPaciente(id: string | null, d: Dados): Promise<string
   if (id) await updateDoc(doc(db, 'pacientes', id), dados)
   else id = (await addDoc(collection(db, 'pacientes'), { ...dados, criadoEm: serverTimestamp() })).id
   return id
+}
+
+/** Exclusão definitiva: apaga o paciente e suas consultas, relatórios e mensagens (o Firestore não apaga subcoleções sozinho). */
+export async function apagaPaciente(id: string) {
+  for (const sub of ['consultas', 'relatorios', 'mensagens']) {
+    const q = await getDocs(collection(db, 'pacientes', id, sub))
+    await Promise.all(q.docs.map((d) => deleteDoc(d.ref)))
+  }
+  await deleteDoc(doc(db, 'pacientes', id))
 }
 
 // ---- link de cadastro (convite de uso único, enviado ao paciente) ----

@@ -43,11 +43,13 @@ describe('Firestore rules', () => {
     await assertSucceeds(setDoc(doc(db, 'pacientes/p2'), ok))
     await assertSucceeds(setDoc(doc(db, 'pacientes/p2'), { ...ok, arquivado: true }))
   })
-  it('valida campos e nunca permite exclusão', async () => {
+  it('valida campos; só a equipe autorizada exclui', async () => {
     const db = como('barbara@exemplo.com')
     await assertFails(setDoc(doc(db, 'pacientes/p3'), { ...ok, whatsapp: '123' }))
     await assertFails(setDoc(doc(db, 'pacientes/p3'), { ...ok, cpf: '000' }))
-    await assertFails(deleteDoc(doc(db, 'pacientes/p1')))
+    await assertFails(deleteDoc(doc(como('estranho@gmail.com'), 'pacientes/p1')))
+    await assertSucceeds(setDoc(doc(db, 'pacientes/p9'), ok))
+    await assertSucceeds(deleteDoc(doc(db, 'pacientes/p9')))
   })
   it('responsável, convênio e datas de atendimento; WhatsApp pode faltar mas nunca ser inválido', async () => {
     const db = como('barbara@exemplo.com')
@@ -58,7 +60,7 @@ describe('Firestore rules', () => {
     await assertFails(setDoc(doc(db, 'pacientes/c4'), { ...crianca, destinatario: 'outro' }))
     await assertFails(setDoc(doc(db, 'pacientes/c5'), { ...crianca, ultimoAtendimento: '14/08/2026' }))
   })
-  it('histórico de mensagens: cria como link_aberto, confirma, nunca apaga nem inventa envio', async () => {
+  it('histórico de mensagens: cria como link_aberto, confirma, só a equipe apaga, nunca inventa envio', async () => {
     const db = como('barbara@exemplo.com')
     const m = doc(db, 'pacientes/p1/mensagens/m1')
     await assertFails(setDoc(m, { tipo: 'retorno', destinatario: 'paciente', status: 'envio_confirmado', criadoEm: serverTimestamp() }))
@@ -66,7 +68,8 @@ describe('Firestore rules', () => {
     await assertSucceeds(setDoc(m, { tipo: 'retorno', destinatario: 'paciente', status: 'link_aberto', criadoEm: serverTimestamp() }))
     await assertSucceeds(updateDoc(m, { status: 'envio_confirmado' }))
     await assertFails(updateDoc(m, { tipo: 'aniversario' }))
-    await assertFails(deleteDoc(m))
+    await assertFails(deleteDoc(doc(como('estranho@gmail.com'), 'pacientes/p1/mensagens/m1')))
+    await assertSucceeds(deleteDoc(m))
     await assertSucceeds(getDocs(collectionGroup(db, 'mensagens')))
     await assertFails(getDocs(collectionGroup(como('estranho@gmail.com'), 'mensagens')))
     await assertFails(getDocs(collectionGroup(env.unauthenticatedContext().firestore(), 'mensagens')))
